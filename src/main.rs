@@ -14,7 +14,7 @@ mod parser {
         IResult, Parser,
         branch::alt,
         character::complete::{char, digit1, one_of},
-        combinator::value,
+        combinator::{Opt, opt, value},
         multi::many0,
         sequence::delimited,
     };
@@ -48,8 +48,11 @@ mod parser {
     }
 
     fn int(input: &str) -> IResult<&str, Rc<Expression>> {
-        digit1
-            .map_res(|int: &str| int.parse())
+        (opt(char('-')), digit1)
+            .map_res(|(minus, int): (Option<char>, &str)| {
+                int.parse()
+                    .map(|int: i64| if minus.is_some() { -int } else { int })
+            })
             .map(|int| Rc::new(Expression::Integer(int)))
             .parse(input)
     }
@@ -170,7 +173,7 @@ fn main() {
                     err.code
                 )
             }
-            _ => println!("Whoopsie, you're f*cked up"),
+            err => println!("Whoopsie, you're f*cked up. If it helps... {err:?}"),
         }
         buffer.clear();
     }
