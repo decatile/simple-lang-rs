@@ -1,8 +1,10 @@
 use std::{
     io::{Write, stdin, stdout},
+    iter::repeat_n,
     time::Instant,
 };
 
+use nom::Err;
 use parser::expr;
 
 mod parser {
@@ -11,9 +13,10 @@ mod parser {
     use nom::{
         IResult, Parser,
         branch::alt,
-        character::complete::{char, digit1},
+        character::complete::{char, digit1, one_of},
         combinator::value,
         multi::many0,
+        sequence::delimited,
     };
 
     #[derive(Clone, Debug)]
@@ -101,16 +104,27 @@ mod parser {
         }
     }
 
+    fn _consume_ws(input: &str) -> IResult<&str, ()> {
+        many0(one_of(" \t")).map(|_| ()).parse(input)
+    }
+
+    fn _delim_space<'a, P: Parser<&'a str, Error = nom::error::Error<&'a str>>>(
+        parser: P,
+    ) -> impl Parser<&'a str, Output = <P as Parser<&'a str>>::Output, Error = nom::error::Error<&'a str>>
+    {
+        delimited(_consume_ws, parser, _consume_ws)
+    }
+
     fn _expr(input: &str) -> IResult<&str, ExprReturn> {
         (
             alt((
-                int.map(|int| ExprReturn {
+                _delim_space(int).map(|int| ExprReturn {
                     exprs: vec![int],
                     opers: vec![],
                 }),
-                (lpar, _expr, rpar).map(|(_, ret, _)| ret.simplify()),
+                (_delim_space(lpar), _expr, _delim_space(rpar)).map(|(_, ret, _)| ret.simplify()),
             )),
-            many0((op, _expr)),
+            many0((_delim_space(op), _expr)),
         )
             .map(|(mut ret, rets)| {
                 for (op, r) in rets {
@@ -135,13 +149,26 @@ fn main() {
         print!("ready> ");
         stdout().flush().unwrap();
         stdin().read_line(&mut buffer).unwrap();
-        match {
-            let t1 = Instant::now();
-            let r = expr(buffer.trim());
-            (r, Instant::now().duration_since(t1))
-        } {
-            (Ok(("", value)), d) => {
-                println!("{} ({}mcs elapsed)", value.execute(), d.as_micros())
+        let trimmed = buffer.trim();
+        let t1 = Instant::now();
+        match expr(trimmed) {
+            Ok(("", value)) => {
+                let d = Instant::now().duration_since(t1);
+                println!("{} ({}us elapsed)", value.execute(), d.as_micros())
+            }
+            Ok((rem, _)) => {
+                println!(
+                    "{}^ Expression ends here",
+                    repeat_n(' ', trimmed.len() - rem.len() + "ready> ".len()).collect::<String>()
+                )
+            }
+            Err(Err::Error(err) | Err::Failure(err)) => {
+                println!(
+                    "{}^ {:?}",
+                    repeat_n(' ', trimmed.len() - err.input.len() + "ready> ".len())
+                        .collect::<String>(),
+                    err.code
+                )
             }
             _ => println!("Whoopsie, you're f*cked up"),
         }
