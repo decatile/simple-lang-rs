@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-inkwell = { version = "0.5.0", features = ["llvm18-0"] }
+# inkwell = { version = "0.5.0", features = ["llvm18-0"] }
 nom = "8.0.0"
-rand = "0.9.0"
+nom_locate = "5.0.0"
+paste = "1.0.15"
+# rand = "0.9.0"
