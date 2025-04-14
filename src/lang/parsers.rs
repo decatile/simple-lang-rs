@@ -2,6 +2,8 @@ use std::{iter, rc::Rc};
 
 use super::tokens::*;
 use super::types::*;
+use nom::combinator::cut;
+use nom::combinator::opt;
 use nom::{
     Input, Offset, Parser,
     branch::alt,
@@ -9,16 +11,6 @@ use nom::{
     combinator::value,
     multi::many0,
 };
-
-pub fn soft<'a, P: Parser<Span<'a>, Error = Error<'a>>>(
-    mut p: P,
-    i: Span<'a>,
-) -> Result<'a, P::Output> {
-    match p.parse(i) {
-        Err(nom::Err::Failure(e)) => Err(nom::Err::Error(e)), // понижаем уровень ошибки
-        other => other,
-    }
-}
 
 pub fn lpar(input: Span) -> Result<Lpar> {
     char::<_, ()>('(')
@@ -33,10 +25,14 @@ pub fn rpar(input: Span) -> Result<Rpar> {
 }
 
 pub fn integer(input: Span) -> Result<Int> {
-    let (rest, int) = digit1::<_, ()>
-        .map_opt(|integral: Span| integral.parse().ok())
-        .parse_or(input, "Cannot instantiate integer")?;
-    Ok((rest, Token::new(input.diff(rest), IInt(int))))
+    let (rest, int) = digit1::<_, ()>.parse_or(input, "Cannot instantiate integer")?;
+    match int.parse::<i64>() {
+        Ok(int) => Ok((rest, Token::new(input.diff(rest), IInt(int)))),
+        Err(_) => Err(nom::Err::Failure(Error::new(
+            input,
+            "Cannot instantiate integer",
+        ))),
+    }
 }
 
 pub fn number(input: Span) -> Result<Number> {
@@ -45,16 +41,17 @@ pub fn number(input: Span) -> Result<Number> {
     if !rest.starts_with('.') {
         return Ok((rest, Number::Int(integral)));
     }
-    let (rest, rational) = integer(rest.take_from(1)).map_err(|err| {
-        err.map(|_| Error::new(input, "Cannot instantiate rational part of float"))
-    })?;
+    let (rest, rational) = integer.parse_or(
+        rest.take_from(1),
+        "Cannot instantiate rational part of float",
+    )?;
     if let Ok(float) = format!("{}.{}", integral.data.0, rational.data.0).parse() {
         Ok((
             rest,
             Number::Float(Token::new(input.diff(rest), IFloat(float))),
         ))
     } else {
-        Err(nom::Err::Error(Error::new(
+        Err(nom::Err::Failure(Error::new(
             input,
             "Cannot instantiate float",
         )))
@@ -73,6 +70,35 @@ pub fn ident(input: Span) -> Result<Ident> {
             "Identifier should contain only alphanumeric chars or underscore",
         )?;
     Ok((rest, Token::new(input.diff(rest), IIdent(id))))
+}
+
+pub fn func_call(input: Span) -> Result<FuncCall> {
+    (
+        ident,
+        lpar,
+        cut((opt((expression, many0((char(','), expression)))), rpar)),
+    )
+        .map(|(ident, lp, (args, rp))| {
+            Token::new(
+                input.take(input.offset(&rp.pos) + rp.pos.len()),
+                IFuncCall {
+                    ident,
+                    args: Token::new(
+                        {
+                            let lp_full = input.take_from(input.offset(&lp.pos));
+                            lp_full.take(lp_full.offset(&rp.pos) + rp.pos.len())
+                        },
+                        IFuncCallArgs(match args {
+                            Some((arg0, args)) => iter::once(arg0)
+                                .chain(args.into_iter().map(|(_, arg)| arg))
+                                .collect::<Vec<_>>(),
+                            None => vec![],
+                        }),
+                    ),
+                },
+            )
+        })
+        .parse_or_nonfatal(input, "Cannot instantiate function call")
 }
 
 pub fn operation(input: Span) -> Result<Operation> {
@@ -129,6 +155,10 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
                     operations: vec![],
                 }
             }),
+            func_call.map(|call| ExpressionTokens {
+                operands: vec![Rc::new(Token::new(call.pos, IExpression::Call(call)))],
+                operations: vec![],
+            }),
             ident.map(|id| ExpressionTokens {
                 operands: vec![Rc::new(Token::new(id.pos, IExpression::Ident(id)))],
                 operations: vec![],
@@ -143,7 +173,6 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
                 ))],
                 operations: vec![],
             }),
-            |_: Span| Err(nom::Err::Failure(Error::new(input, "Invalid expression"))),
         )),
         many0((operation, parse_expression_tokens)),
     )
@@ -158,8 +187,7 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
 }
 
 pub fn expression(input: Span) -> Result<Rc<Expression>> {
-    soft(
-        parse_expression_tokens.map(|tok| tok.simplify().operands.remove(0)),
-        input,
-    )
+    parse_expression_tokens
+        .map(|tok| tok.simplify().operands.remove(0))
+        .parse(input)
 }

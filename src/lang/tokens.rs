@@ -12,6 +12,10 @@ pub type Float<'a> = Token<'a, IFloat>;
 
 pub type Ident<'a> = Token<'a, IIdent>;
 
+pub type FuncCall<'a> = Token<'a, IFuncCall<'a>>;
+
+pub type FuncCallArgs<'a> = Token<'a, IFuncCallArgs<'a>>;
+
 pub type Operation<'a> = Token<'a, IOperation>;
 
 pub type Expression<'a> = Token<'a, IExpression<'a>>;
@@ -50,6 +54,15 @@ pub enum Number<'a> {
 pub struct IIdent(pub String);
 
 #[derive(Debug, Clone)]
+pub struct IFuncCallArgs<'a>(pub Vec<Rc<Expression<'a>>>);
+
+#[derive(Debug, Clone)]
+pub struct IFuncCall<'a> {
+    pub ident: Ident<'a>,
+    pub args: FuncCallArgs<'a>,
+}
+
+#[derive(Debug, Clone)]
 pub enum IOperation {
     Add,
     Sub,
@@ -59,6 +72,7 @@ pub enum IOperation {
 
 #[derive(Debug, Clone)]
 pub enum IExpression<'a> {
+    Call(FuncCall<'a>),
     Ident(Ident<'a>),
     Number(Number<'a>),
     Binary(Rc<Expression<'a>>, Operation<'a>, Rc<Expression<'a>>),
@@ -66,7 +80,7 @@ pub enum IExpression<'a> {
 
 #[derive(Debug, Clone)]
 pub enum TryEvaluateError<'a> {
-    Var(Span<'a>),
+    NonConst(Span<'a>),
     Overflow(Span<'a>),
     DivisionByZero(Span<'a>),
 }
@@ -74,7 +88,8 @@ pub enum TryEvaluateError<'a> {
 impl<'a> IExpression<'a> {
     pub fn try_evaluate(&self) -> std::result::Result<f64, TryEvaluateError<'a>> {
         match self {
-            IExpression::Ident(id) => Err(TryEvaluateError::Var(id.pos)),
+            IExpression::Call(call) => Err(TryEvaluateError::NonConst(call.pos)),
+            IExpression::Ident(id) => Err(TryEvaluateError::NonConst(id.pos)),
             IExpression::Number(num) => Ok(match num {
                 Number::Int(int) => int.data.0 as f64,
                 Number::Float(float) => float.data.0,
