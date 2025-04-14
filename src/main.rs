@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-mod parser;
+mod lang;
 
 fn main() {
     let mut buf = String::new();
@@ -15,7 +15,7 @@ fn main() {
         stdin().read_line(&mut buf).unwrap();
         let span = buf.trim().into();
         let i1 = Instant::now();
-        match parser::expression(span) {
+        match lang::expression(span) {
             Ok((rest, result)) if rest.is_empty() => {
                 let i2 = Instant::now();
                 println!(
@@ -25,10 +25,9 @@ fn main() {
                 );
             }
             Ok((rest, _)) => {
-                let offset = span.offset(&rest);
                 println!(
-                    "{}^- Why is that here",
-                    repeat_n(' ', offset + 2).collect::<String>(),
+                    "{}^- Why is that here? Parser recorded end of known expression (char to left)",
+                    repeat_n(' ', span.offset(&rest) + 2).collect::<String>(),
                 )
             }
             Err(err) => match err {
