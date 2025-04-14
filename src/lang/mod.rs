@@ -1,5 +1,5 @@
-mod parsers;
+mod parser;
 mod tokens;
 mod types;
 
-pub use parsers::*;
+pub use parser::*;

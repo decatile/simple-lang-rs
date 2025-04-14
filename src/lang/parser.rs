@@ -12,6 +12,18 @@ use nom::{
     multi::many0,
 };
 
+pub fn eol(input: Span) -> Result<Eol> {
+    char::<_, ()>('\n')
+        .map(|_| Token::new(input.take(1), IEol))
+        .parse_or(input, "Expected EOL")
+}
+
+pub fn eql(input: Span) -> Result<Eql> {
+    char::<_, ()>('=')
+        .map(|_| Token::new(input.take(1), IEql))
+        .parse_or(input, "Expected '='")
+}
+
 pub fn lpar(input: Span) -> Result<Lpar> {
     char::<_, ()>('(')
         .map(|_| Token::new(input.take(1), ILpar))
@@ -80,14 +92,13 @@ pub fn func_call(input: Span) -> Result<FuncCall> {
     )
         .map(|(ident, lp, (args, rp))| {
             Token::new(
-                input.take(input.offset(&rp.pos) + rp.pos.len()),
+                input.including_diff(rp.pos),
                 IFuncCall {
                     ident,
                     args: Token::new(
-                        {
-                            let lp_full = input.take_from(input.offset(&lp.pos));
-                            lp_full.take(lp_full.offset(&rp.pos) + rp.pos.len())
-                        },
+                        input
+                            .take_from(input.offset(&lp.pos))
+                            .including_diff(rp.pos),
                         IFuncCallArgs(match args {
                             Some((arg0, args)) => iter::once(arg0)
                                 .chain(args.into_iter().map(|(_, arg)| arg))
@@ -98,7 +109,7 @@ pub fn func_call(input: Span) -> Result<FuncCall> {
                 },
             )
         })
-        .parse_or_nonfatal(input, "Cannot instantiate function call")
+        .parse(input)
 }
 
 pub fn operation(input: Span) -> Result<Operation> {
@@ -113,7 +124,7 @@ pub fn operation(input: Span) -> Result<Operation> {
 }
 
 struct ExpressionTokens<'a> {
-    operands: Vec<Rc<Expression<'a>>>,
+    operands: Vec<Expression<'a>>,
     operations: Vec<Operation<'a>>,
 }
 
@@ -122,18 +133,18 @@ impl<'a> ExpressionTokens<'a> {
         while let Some(pos) = self
             .operations
             .iter()
-            .position(|op| matches!(op.data, IOperation::Mul | IOperation::Div))
+            .position(|op| matches!(*op.data, IOperation::Mul | IOperation::Div))
         {
             let op = self.operations.remove(pos);
             let rhs = self.operands.remove(pos + 1);
             let lhs = self.operands[pos].clone();
-            self.operands[pos] = Rc::new(Token::new(lhs.pos, IExpression::Binary(lhs, op, rhs)));
+            self.operands[pos] = Token::new(lhs.pos, IExpression::Binary(lhs, op, rhs));
         }
         while !self.operations.is_empty() {
             let op = self.operations.remove(0);
             let rhs = self.operands.remove(1);
             let lhs = self.operands[0].clone();
-            self.operands[0] = Rc::new(Token::new(lhs.pos, IExpression::Binary(lhs, op, rhs)));
+            self.operands[0] = Token::new(lhs.pos, IExpression::Binary(lhs, op, rhs));
         }
         self
     }
@@ -149,28 +160,27 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
         alt((
             (lpar, parse_expression_tokens, rpar).map(|(_, exp, rp)| {
                 let exp = exp.simplify().operands.remove(0);
-                let len = input.offset(&rp.pos) + rp.pos.len();
                 ExpressionTokens {
-                    operands: vec![Rc::new(Token::new(input.take(len), exp.data.clone()))],
+                    operands: vec![Token::new(input.including_diff(rp.pos), exp.data.clone())],
                     operations: vec![],
                 }
             }),
             func_call.map(|call| ExpressionTokens {
-                operands: vec![Rc::new(Token::new(call.pos, IExpression::Call(call)))],
+                operands: vec![Token::new(call.pos, IExpression::Call(call))],
                 operations: vec![],
             }),
             ident.map(|id| ExpressionTokens {
-                operands: vec![Rc::new(Token::new(id.pos, IExpression::Ident(id)))],
+                operands: vec![Token::new(id.pos, IExpression::Ident(id))],
                 operations: vec![],
             }),
             number.map(|num| ExpressionTokens {
-                operands: vec![Rc::new(Token::new(
+                operands: vec![Token::new(
                     match &num {
                         Number::Int(token) => token.pos,
                         Number::Float(token) => token.pos,
                     },
                     IExpression::Number(num),
-                ))],
+                )],
                 operations: vec![],
             }),
         )),
@@ -186,8 +196,48 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
         .parse(input)
 }
 
-pub fn expression(input: Span) -> Result<Rc<Expression>> {
+pub fn expression(input: Span) -> Result<Expression> {
     parse_expression_tokens
         .map(|tok| tok.simplify().operands.remove(0))
+        .parse(input)
+}
+
+pub fn assign(input: Span) -> Result<Assign> {
+    (ident, eql, cut((expression, eol)))
+        .map(|(ident, _, (expr, eol))| {
+            Token::new(ident.pos.including_diff(eol.pos), IAssign { ident, expr })
+        })
+        .parse(input)
+}
+
+pub fn func_assign(input: Span) -> Result<FuncAssign> {
+    (
+        ident,
+        lpar,
+        opt((ident, many0((char(','), ident)))),
+        rpar,
+        eql,
+        cut((expression, eol)),
+    )
+        .map(|(ident, lp, args, rp, _, (exp, eol))| {
+            Token::new(
+                input.including_diff(eol.pos),
+                IFuncAssign {
+                    ident,
+                    args: Token::new(
+                        input
+                            .take_from(input.offset(&lp.pos))
+                            .including_diff(rp.pos),
+                        IFuncAssignArgs(match args {
+                            Some((arg0, args)) => iter::once(arg0)
+                                .chain(args.into_iter().map(|(_, arg)| arg))
+                                .collect::<Vec<_>>(),
+                            None => vec![],
+                        }),
+                    ),
+                    expr: exp,
+                },
+            )
+        })
         .parse(input)
 }

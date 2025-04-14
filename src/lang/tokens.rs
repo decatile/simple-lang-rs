@@ -1,6 +1,10 @@
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use super::types::Span;
+
+pub type Eol<'a> = Token<'a, IEol>;
+
+pub type Eql<'a> = Token<'a, IEql>;
 
 pub type Lpar<'a> = Token<'a, ILpar>;
 
@@ -20,17 +24,32 @@ pub type Operation<'a> = Token<'a, IOperation>;
 
 pub type Expression<'a> = Token<'a, IExpression<'a>>;
 
+pub type Assign<'a> = Token<'a, IAssign<'a>>;
+
+pub type FuncAssign<'a> = Token<'a, IFuncAssign<'a>>;
+
+pub type FuncAssignArgs<'a> = Token<'a, IFuncAssignArgs<'a>>;
+
 #[derive(Debug, Clone)]
 pub struct Token<'a, T> {
     pub pos: Span<'a>,
-    pub data: T,
+    pub data: Rc<T>,
 }
 
 impl<'a, T> Token<'a, T> {
-    pub fn new(pos: Span<'a>, data: T) -> Self {
-        Self { pos, data }
+    pub fn new<I: Into<Rc<T>>>(pos: Span<'a>, data: I) -> Self {
+        Self {
+            pos,
+            data: data.into(),
+        }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct IEol;
+
+#[derive(Debug, Clone)]
+pub struct IEql;
 
 #[derive(Debug, Clone)]
 pub struct ILpar;
@@ -54,7 +73,7 @@ pub enum Number<'a> {
 pub struct IIdent(pub String);
 
 #[derive(Debug, Clone)]
-pub struct IFuncCallArgs<'a>(pub Vec<Rc<Expression<'a>>>);
+pub struct IFuncCallArgs<'a>(pub Vec<Expression<'a>>);
 
 #[derive(Debug, Clone)]
 pub struct IFuncCall<'a> {
@@ -75,7 +94,7 @@ pub enum IExpression<'a> {
     Call(FuncCall<'a>),
     Ident(Ident<'a>),
     Number(Number<'a>),
-    Binary(Rc<Expression<'a>>, Operation<'a>, Rc<Expression<'a>>),
+    Binary(Expression<'a>, Operation<'a>, Expression<'a>),
 }
 
 #[derive(Debug, Clone)]
@@ -97,7 +116,7 @@ impl<'a> IExpression<'a> {
             IExpression::Binary(ex1, op, ex2) => {
                 let r1 = ex1.data.try_evaluate()?;
                 let r2 = ex2.data.try_evaluate()?;
-                let r = match op.data {
+                let r = match *op.data {
                     IOperation::Add => r1 + r2,
                     IOperation::Sub => r1 - r2,
                     IOperation::Mul => r1 * r2,
@@ -117,3 +136,19 @@ impl<'a> IExpression<'a> {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct IAssign<'a> {
+    pub ident: Ident<'a>,
+    pub expr: Expression<'a>,
+}
+
+#[derive(Debug, Clone)]
+pub struct IFuncAssign<'a> {
+    pub ident: Ident<'a>,
+    pub args: FuncAssignArgs<'a>,
+    pub expr: Expression<'a>,
+}
+
+#[derive(Debug, Clone)]
+pub struct IFuncAssignArgs<'a>(pub Vec<Ident<'a>>);
