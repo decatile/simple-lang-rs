@@ -1,4 +1,4 @@
-use std::{iter, rc::Rc};
+use std::iter;
 
 use super::tokens::*;
 use super::types::*;
@@ -37,6 +37,21 @@ pub fn rpar(input: Span) -> Result<Rpar> {
 }
 
 pub fn integer(input: Span) -> Result<Int> {
+    let (rest, minus) = opt(char('-')).map(|c| c.is_some()).parse(input)?;
+    let (rest, int) = digit1::<_, ()>.parse_or(rest, "Cannot instantiate integer")?;
+    match int.parse::<i64>() {
+        Ok(int) => Ok((
+            rest,
+            Token::new(input.diff(rest), IInt(if minus { -int } else { int })),
+        )),
+        Err(_) => Err(nom::Err::Failure(Error::new(
+            input,
+            "Cannot instantiate integer",
+        ))),
+    }
+}
+
+fn non_negative_integer(input: Span) -> Result<Int> {
     let (rest, int) = digit1::<_, ()>.parse_or(input, "Cannot instantiate integer")?;
     match int.parse::<i64>() {
         Ok(int) => Ok((rest, Token::new(input.diff(rest), IInt(int)))),
@@ -53,7 +68,7 @@ pub fn number(input: Span) -> Result<Number> {
     if !rest.starts_with('.') {
         return Ok((rest, Number::Int(integral)));
     }
-    let (rest, rational) = integer.parse_or(
+    let (rest, rational) = non_negative_integer.parse_or(
         rest.take_from(1),
         "Cannot instantiate rational part of float",
     )?;
@@ -204,12 +219,7 @@ pub fn expression(input: Span) -> Result<Expression> {
 
 pub fn var_assign(input: Span) -> Result<VarAssign> {
     (ident, eql, cut((expression, eol)))
-        .map(|(ident, _, (expr, eol))| {
-            Token::new(
-                input.diff(eol.pos),
-                IVarAssign { ident, expr },
-            )
-        })
+        .map(|(ident, _, (expr, eol))| Token::new(input.diff(eol.pos), IVarAssign { ident, expr }))
         .parse(input)
 }
 

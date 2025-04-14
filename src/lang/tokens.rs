@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 use super::types::Span;
 
@@ -95,46 +95,6 @@ pub enum IExpression<'a> {
     Ident(Ident<'a>),
     Number(Number<'a>),
     Binary(Expression<'a>, Operation<'a>, Expression<'a>),
-}
-
-#[derive(Debug, Clone)]
-pub enum TryEvaluateError<'a> {
-    NonConst(Span<'a>),
-    Overflow(Span<'a>),
-    DivisionByZero(Span<'a>),
-}
-
-impl<'a> IExpression<'a> {
-    pub fn try_evaluate(&self) -> std::result::Result<f64, TryEvaluateError<'a>> {
-        match self {
-            IExpression::Call(call) => Err(TryEvaluateError::NonConst(call.pos)),
-            IExpression::Ident(id) => Err(TryEvaluateError::NonConst(id.pos)),
-            IExpression::Number(num) => Ok(match num {
-                Number::Int(int) => int.data.0 as f64,
-                Number::Float(float) => float.data.0,
-            }),
-            IExpression::Binary(ex1, op, ex2) => {
-                let r1 = ex1.data.try_evaluate()?;
-                let r2 = ex2.data.try_evaluate()?;
-                let r = match *op.data {
-                    IOperation::Add => r1 + r2,
-                    IOperation::Sub => r1 - r2,
-                    IOperation::Mul => r1 * r2,
-                    IOperation::Div => {
-                        if r2 == 0. {
-                            return Err(TryEvaluateError::DivisionByZero(ex2.pos));
-                        }
-                        r1 / r2
-                    }
-                };
-                if r.is_finite() {
-                    Ok(r)
-                } else {
-                    Err(TryEvaluateError::Overflow(op.pos))
-                }
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

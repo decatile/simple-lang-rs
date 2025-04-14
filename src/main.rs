@@ -2,10 +2,8 @@ use lang::{Context, Func, Span};
 use nom::{Err, Input, Offset};
 use std::{
     cell::UnsafeCell,
-    collections::HashMap,
     io::{Write, stdin, stdout},
     iter::repeat_n,
-    time::Instant,
 };
 
 mod lang;
@@ -13,13 +11,13 @@ mod lang;
 fn main() {
     let mut buf = UnsafeCell::new(String::new());
     let mut buf_read = 0;
-    let mut ctx = Context::default();
+    let mut ctx = Context::new();
     loop {
         print!("> ");
         stdout().flush().unwrap();
-        let new_buf_read = stdin().read_line(&mut *buf.get_mut()).unwrap();
-        let span: Span = unsafe { &*buf.get() }.as_str().into();
-        match lang::program(span.take_from(buf_read)) {
+        let new_buf_read = stdin().read_line(buf.get_mut()).unwrap();
+        let span = Span::new(unsafe { &*buf.get() }).take_from(buf_read);
+        match lang::program(span) {
             Ok((_, program)) => {
                 buf_read += new_buf_read;
                 match program {
@@ -43,7 +41,7 @@ fn main() {
                 }
             }
             Err(err) => {
-                unsafe { &mut *buf.get() }.shrink_to(buf_read);
+                unsafe { &mut *buf.get() }.drain(buf_read..);
                 match err {
                     Err::Incomplete(needed) => println!("{needed:?}"),
                     Err::Error(err) | Err::Failure(err) => {

@@ -82,24 +82,3 @@ impl<'a, P: Parser<Span<'a>>> ParserExt<'a> for P {
             .map_err(|err| err.map(|_| Error::new(input, msg)))
     }
 }
-
-pub trait ParserErrorExt<'a>: Parser<Span<'a>, Error = Error<'a>> {
-    fn parse_or_nonfatal<M: Into<Cow<'a, str>>>(
-        &mut self,
-        input: Span<'a>,
-        msg: M,
-    ) -> Result<'a, Self::Output>;
-}
-
-impl<'a, P: Parser<Span<'a>, Error = Error<'a>>> ParserErrorExt<'a> for P {
-    fn parse_or_nonfatal<M: Into<Cow<'a, str>>>(
-        &mut self,
-        input: Span<'a>,
-        msg: M,
-    ) -> Result<'a, Self::Output> {
-        self.parse(input).map_err(|err| match err {
-            fail @ nom::Err::Failure(_) => fail,
-            _ => nom::Err::Error(Error::new(input, msg)),
-        })
-    }
-}

@@ -2,15 +2,25 @@ use std::{collections::HashMap, rc::Rc};
 
 use super::tokens::{Expression, FuncAssign, FuncCall, IExpression, IOperation, Ident, Number};
 
-#[derive(Clone)]
-pub struct BuiltinFunc {
-    inner: Rc<dyn Fn(&[f64])>,
-    argc: usize,
+#[macro_export]
+macro_rules! builtin_func {
+    ($name:ident, $argc:expr, $closure:expr) => {
+        (
+            stringify!($name).into(),
+            Func::Builtin {
+                inner: Rc::new($closure),
+                argc: $argc,
+            },
+        )
+    };
 }
 
 #[derive(Clone)]
 pub enum Func<'a> {
-    Builtin(BuiltinFunc),
+    Builtin {
+        inner: Rc<dyn Fn(&[f64]) -> f64>,
+        argc: usize,
+    },
     Custom(FuncAssign<'a>),
 }
 
@@ -18,6 +28,19 @@ pub enum Func<'a> {
 pub struct Context<'a> {
     pub vars: HashMap<String, f64>,
     pub funcs: HashMap<String, Func<'a>>,
+}
+
+impl<'a> Context<'a> {
+    pub fn new() -> Self {
+        let mut this = Context::default();
+        this.funcs
+            .extend([builtin_func!(abs, 1, |args| if args[0] >= 0. {
+                args[0]
+            } else {
+                -args[0]
+            })]);
+        this
+    }
 }
 
 #[derive(Debug)]
@@ -66,19 +89,21 @@ impl<'a> Context<'a> {
                     .get(token.data.ident.data.0.as_str())
                     .ok_or(EvaluateExpressionError::UndefinedFunction(token.clone()))?
                 {
-                    Func::Builtin(builtin_func) => {
-                        if builtin_func.argc != argc {
+                    Func::Builtin {
+                        argc: builtin_func_argc,
+                        inner: builtin_func_inner,
+                    } => {
+                        if *builtin_func_argc != argc {
                             return Err(EvaluateExpressionError::InvalidFunctionArgc(
                                 token.clone(),
-                                builtin_func.argc,
+                                *builtin_func_argc,
                             ));
                         }
                         let mut args = vec![0.; argc];
                         for (idx, tok) in token.data.args.data.0.iter().enumerate() {
                             args[idx] = self.evaluate_expression(tok)?;
                         }
-                        (builtin_func.inner)(&args);
-                        todo!()
+                        Ok((builtin_func_inner)(&args))
                     }
                     Func::Custom(custom_func) => {
                         let custom_func_argc = custom_func.data.args.data.0.len();
