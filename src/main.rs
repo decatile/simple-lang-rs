@@ -1,45 +1,60 @@
-use nom::{Err, Offset};
+use lang::{Context, Func, Span};
+use nom::{Err, Input, Offset};
 use std::{
-    collections::HashMap, io::{stdin, stdout, Write}, iter::repeat_n, time::Instant
+    cell::UnsafeCell,
+    collections::HashMap,
+    io::{Write, stdin, stdout},
+    iter::repeat_n,
+    time::Instant,
 };
 
 mod lang;
 
 fn main() {
-    // let mut buf = String::new();
-    // loop {
-    //     print!("> ");
-    //     stdout().flush().unwrap();
-    //     stdin().read_line(&mut buf).unwrap();
-    //     let span = buf.trim().into();
-    //     let i1 = Instant::now();
-    //     match lang::expression(span) {
-    //         Ok((rest, result)) if rest.is_empty() => {
-    //             let i2 = Instant::now();
-    //             println!(
-    //                 "\n{result:?}\n\n{:?}\n\nTook {}us",
-    //                 result.data.try_evaluate(),
-    //                 i2.duration_since(i1).as_micros()
-    //             );
-    //         }
-    //         Ok((rest, _)) => {
-    //             println!(
-    //                 "{}^- Why is that here? Parser recorded end of known expression (char to left)",
-    //                 repeat_n(' ', span.offset(&rest) + 2).collect::<String>(),
-    //             )
-    //         }
-    //         Err(err) => match err {
-    //             Err::Incomplete(needed) => println!("{needed:?}"),
-    //             Err::Error(err) | Err::Failure(err) => {
-    //                 println!(
-    //                     "{}^- {}",
-    //                     repeat_n(' ', span.offset(&err.input) + 2).collect::<String>(),
-    //                     err.message,
-    //                 );
-    //             }
-    //         },
-    //     }
-    //     buf.clear();
-    // }
-    println!("{:?}", lang::func_assign("a(x)=345643-345\n".into()));
+    let mut buf = UnsafeCell::new(String::new());
+    let mut buf_read = 0;
+    let mut ctx = Context::default();
+    loop {
+        print!("> ");
+        stdout().flush().unwrap();
+        let new_buf_read = stdin().read_line(&mut *buf.get_mut()).unwrap();
+        let span: Span = unsafe { &*buf.get() }.as_str().into();
+        match lang::program(span.take_from(buf_read)) {
+            Ok((_, program)) => {
+                buf_read += new_buf_read;
+                match program {
+                    lang::Program::Expression(token) => {
+                        println!("{:?}", ctx.evaluate_expression(&token))
+                    }
+                    lang::Program::Func(token) => {
+                        ctx.funcs
+                            .insert(token.data.ident.data.0.clone(), Func::Custom(token));
+                        println!("Ok!")
+                    }
+                    lang::Program::Var(token) => match ctx.evaluate_expression(&token.data.expr) {
+                        Ok(result) => {
+                            ctx.vars.insert(token.data.ident.data.0.clone(), result);
+                            println!("{result}");
+                        }
+                        Err(err) => {
+                            println!("{err:?}");
+                        }
+                    },
+                }
+            }
+            Err(err) => {
+                unsafe { &mut *buf.get() }.shrink_to(buf_read);
+                match err {
+                    Err::Incomplete(needed) => println!("{needed:?}"),
+                    Err::Error(err) | Err::Failure(err) => {
+                        println!(
+                            "{}^- {}",
+                            repeat_n(' ', span.offset(&err.input) + 2).collect::<String>(),
+                            err.message,
+                        );
+                    }
+                }
+            }
+        }
+    }
 }

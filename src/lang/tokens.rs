@@ -24,7 +24,7 @@ pub type Operation<'a> = Token<'a, IOperation>;
 
 pub type Expression<'a> = Token<'a, IExpression<'a>>;
 
-pub type Assign<'a> = Token<'a, IAssign<'a>>;
+pub type VarAssign<'a> = Token<'a, IVarAssign<'a>>;
 
 pub type FuncAssign<'a> = Token<'a, IFuncAssign<'a>>;
 
@@ -138,7 +138,7 @@ impl<'a> IExpression<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct IAssign<'a> {
+pub struct IVarAssign<'a> {
     pub ident: Ident<'a>,
     pub expr: Expression<'a>,
 }

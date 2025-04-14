@@ -202,10 +202,13 @@ pub fn expression(input: Span) -> Result<Expression> {
         .parse(input)
 }
 
-pub fn assign(input: Span) -> Result<Assign> {
+pub fn var_assign(input: Span) -> Result<VarAssign> {
     (ident, eql, cut((expression, eol)))
         .map(|(ident, _, (expr, eol))| {
-            Token::new(ident.pos.including_diff(eol.pos), IAssign { ident, expr })
+            Token::new(
+                input.diff(eol.pos),
+                IVarAssign { ident, expr },
+            )
         })
         .parse(input)
 }
@@ -221,7 +224,7 @@ pub fn func_assign(input: Span) -> Result<FuncAssign> {
     )
         .map(|(ident, lp, args, rp, _, (exp, eol))| {
             Token::new(
-                input.including_diff(eol.pos),
+                input.diff(eol.pos),
                 IFuncAssign {
                     ident,
                     args: Token::new(
@@ -240,4 +243,19 @@ pub fn func_assign(input: Span) -> Result<FuncAssign> {
             )
         })
         .parse(input)
+}
+
+pub enum Program<'a> {
+    Expression(Expression<'a>),
+    Func(FuncAssign<'a>),
+    Var(VarAssign<'a>),
+}
+
+pub fn program(input: Span) -> Result<Program> {
+    alt((
+        (expression, eol).map(|(expr, _)| Program::Expression(expr)),
+        func_assign.map(Program::Func),
+        var_assign.map(Program::Var),
+    ))
+    .parse(input)
 }
