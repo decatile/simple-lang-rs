@@ -1,6 +1,8 @@
 use std::{collections::HashMap, rc::Rc};
 
-use super::tokens::{Expression, FuncAssign, FuncCall, IExpression, IOperation, Ident, Number};
+use super::tokens::{
+    Expression, FuncAssign, FuncCall, IBinaryOperation, IExpression, IUnaryOperation, Ident, Number,
+};
 
 #[macro_export]
 macro_rules! builtin_func {
@@ -43,12 +45,14 @@ impl<'a> Context<'a> {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum EvaluateExpressionError<'a> {
     InvalidFunctionArgc(FuncCall<'a>, usize),
     UndefinedFunction(FuncCall<'a>),
     UndefinedVar(Ident<'a>),
     DivisionByZero(Expression<'a>),
+    Overflow(Expression<'a>),
 }
 
 impl<'a> Context<'a> {
@@ -66,21 +70,37 @@ impl<'a> Context<'a> {
                 Number::Int(token) => Ok(token.data.0 as f64),
                 Number::Float(token) => Ok(token.data.0),
             },
+            IExpression::Unary(hs, op) => {
+                let hr = self.evaluate_expression(hs)?;
+                let r = match *op.data {
+                    IUnaryOperation::Inv => -hr,
+                };
+                if r.is_finite() {
+                    Ok(r)
+                } else {
+                    Err(EvaluateExpressionError::Overflow(expr.clone()))
+                }
+            }
             IExpression::Binary(lhs, op, rhs) => {
                 let lr = self.evaluate_expression(lhs)?;
                 let rr = self.evaluate_expression(rhs)?;
-                Ok(match *op.data {
-                    IOperation::Add => lr + rr,
-                    IOperation::Sub => lr - rr,
-                    IOperation::Mul => lr * rr,
-                    IOperation::Div => {
+                let r = match *op.data {
+                    IBinaryOperation::Add => lr + rr,
+                    IBinaryOperation::Sub => lr - rr,
+                    IBinaryOperation::Mul => lr * rr,
+                    IBinaryOperation::Div => {
                         if rr == 0. {
                             return Err(EvaluateExpressionError::DivisionByZero(rhs.clone()));
                         } else {
                             lr / rr
                         }
                     }
-                })
+                };
+                if r.is_finite() {
+                    Ok(r)
+                } else {
+                    Err(EvaluateExpressionError::Overflow(expr.clone()))
+                }
             }
             IExpression::Call(token) => {
                 let argc = token.data.args.data.0.len();

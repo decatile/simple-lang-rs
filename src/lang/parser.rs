@@ -15,7 +15,7 @@ use nom::{
 #[cfg(target_os = "windows")]
 pub fn eol(input: Span) -> Result<Eol> {
     nom::bytes::complete::tag::<_, _, ()>("\r\n")
-        .map(|_| Token::new(input.take(1), IEol))
+        .map(|_| Token::new(input.take(2), IEol))
         .parse_or(input, "Expected EOL")
 }
 
@@ -44,22 +44,7 @@ pub fn rpar(input: Span) -> Result<Rpar> {
         .parse_or(input, "Expected ')'")
 }
 
-pub fn integer(input: Span) -> Result<Int> {
-    let (rest, minus) = opt(char('-')).map(|c| c.is_some()).parse(input)?;
-    let (rest, int) = digit1::<_, ()>.parse_or(rest, "Cannot instantiate integer")?;
-    match int.parse::<i64>() {
-        Ok(int) => Ok((
-            rest,
-            Token::new(input.diff(rest), IInt(if minus { -int } else { int })),
-        )),
-        Err(_) => Err(nom::Err::Failure(Error::new(
-            input,
-            "Cannot instantiate integer",
-        ))),
-    }
-}
-
-fn non_negative_integer(input: Span) -> Result<Int> {
+fn integer(input: Span) -> Result<Int> {
     let (rest, int) = digit1::<_, ()>.parse_or(input, "Cannot instantiate integer")?;
     match int.parse::<i64>() {
         Ok(int) => Ok((rest, Token::new(input.diff(rest), IInt(int)))),
@@ -76,7 +61,7 @@ pub fn number(input: Span) -> Result<Number> {
     if !rest.starts_with('.') {
         return Ok((rest, Number::Int(integral)));
     }
-    let (rest, rational) = non_negative_integer.parse_or(
+    let (rest, rational) = integer.parse_or(
         rest.take_from(1),
         "Cannot instantiate rational part of float",
     )?;
@@ -135,12 +120,18 @@ pub fn func_call(input: Span) -> Result<FuncCall> {
         .parse(input)
 }
 
-pub fn operation(input: Span) -> Result<Operation> {
+pub fn unary_operation(input: Span) -> Result<UnaryOperation> {
+    value(IUnaryOperation::Inv, char::<_, ()>('-'))
+        .map(|inner| Token::new(input.take(1), inner))
+        .parse_or(input, "Expected 'unary-'")
+}
+
+pub fn binary_operation(input: Span) -> Result<BinaryOperation> {
     alt((
-        value(IOperation::Add, char::<_, ()>('+')),
-        value(IOperation::Sub, char('-')),
-        value(IOperation::Mul, char('*')),
-        value(IOperation::Div, char('/')),
+        value(IBinaryOperation::Add, char::<_, ()>('+')),
+        value(IBinaryOperation::Sub, char('-')),
+        value(IBinaryOperation::Mul, char('*')),
+        value(IBinaryOperation::Div, char('/')),
     ))
     .map(|inner| Token::new(input.take(1), inner))
     .parse_or(input, "Expected '+', '-', '*', or '/'")
@@ -148,7 +139,7 @@ pub fn operation(input: Span) -> Result<Operation> {
 
 struct ExpressionTokens<'a> {
     operands: Vec<Expression<'a>>,
-    operations: Vec<Operation<'a>>,
+    operations: Vec<BinaryOperation<'a>>,
 }
 
 impl<'a> ExpressionTokens<'a> {
@@ -156,7 +147,7 @@ impl<'a> ExpressionTokens<'a> {
         while let Some(pos) = self
             .operations
             .iter()
-            .position(|op| matches!(*op.data, IOperation::Mul | IOperation::Div))
+            .position(|op| matches!(*op.data, IBinaryOperation::Mul | IBinaryOperation::Div))
         {
             let op = self.operations.remove(pos);
             let rhs = self.operands.remove(pos + 1);
@@ -181,6 +172,23 @@ impl<'a> ExpressionTokens<'a> {
 fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
     (
         alt((
+            (unary_operation, parse_expression_tokens).map(|(op, mut exp)| {
+                let exp0 = exp.operands[0].clone();
+                exp.operands[0] = Token::new(
+                    input.including_diff(exp0.pos),
+                    IExpression::Unary(
+                        Token::new(
+                            input.take_from(op.pos.len()).including_diff(exp0.pos),
+                            exp0.data.clone(),
+                        ),
+                        op,
+                    ),
+                );
+                ExpressionTokens {
+                    operands: vec![exp.simplify().operands.remove(0)],
+                    operations: vec![],
+                }
+            }),
             (lpar, parse_expression_tokens, rpar).map(|(_, exp, rp)| {
                 let exp = exp.simplify().operands.remove(0);
                 ExpressionTokens {
@@ -207,7 +215,7 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
                 operations: vec![],
             }),
         )),
-        many0((operation, parse_expression_tokens)),
+        many0((binary_operation, parse_expression_tokens)),
     )
         .map(|(mut tok, toks)| {
             for (op, tt) in toks {
