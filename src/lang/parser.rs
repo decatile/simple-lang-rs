@@ -12,6 +12,14 @@ use nom::{
     multi::many0,
 };
 
+#[cfg(target_os = "windows")]
+pub fn eol(input: Span) -> Result<Eol> {
+    nom::bytes::complete::tag::<_, _, ()>("\r\n")
+        .map(|_| Token::new(input.take(1), IEol))
+        .parse_or(input, "Expected EOL")
+}
+
+#[cfg(not(target_os = "windows"))]
 pub fn eol(input: Span) -> Result<Eol> {
     char::<_, ()>('\n')
         .map(|_| Token::new(input.take(1), IEol))
