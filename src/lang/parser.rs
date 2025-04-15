@@ -156,9 +156,12 @@ pub fn func_call(input: Span) -> Result<FuncCall> {
 }
 
 pub fn unary_operation(input: Span) -> Result<UnaryOperation> {
-    ws(parsed(value(IUnaryOperation::Inv, char::<_, ()>('-'))))
-        .map(|(inner, diff)| Token::new(diff, inner))
-        .parse_or(input, "Expected 'unary-'")
+    ws(parsed(alt((
+        value(IUnaryOperation::Pos, char::<_, ()>('+')),
+        value(IUnaryOperation::Neg, char::<_, ()>('-')),
+    ))))
+    .map(|(inner, diff)| Token::new(diff, inner))
+    .parse_or(input, "Expected 'unary+' or 'unary-'")
 }
 
 pub fn binary_operation(input: Span) -> Result<BinaryOperation> {
