@@ -2,8 +2,10 @@ use std::iter;
 
 use super::tokens::*;
 use super::types::*;
+use nom::character::complete::space0;
 use nom::combinator::cut;
 use nom::combinator::opt;
+use nom::sequence::delimited;
 use nom::{
     Input, Offset, Parser,
     branch::alt,
@@ -11,6 +13,21 @@ use nom::{
     combinator::value,
     multi::many0,
 };
+
+fn ws<'a, F: Parser<Span<'a>>>(
+    inner: F,
+) -> impl Parser<Span<'a>, Output = F::Output, Error = F::Error> {
+    delimited(space0, inner, space0)
+}
+
+fn parsed<'a, F: Parser<Span<'a>>>(
+    mut inner: F,
+) -> impl Parser<Span<'a>, Output = (F::Output, Span<'a>), Error = F::Error> {
+    move |input: Span<'a>| {
+        let (rest, result) = inner.parse(input)?;
+        Ok((rest, (result, input.diff(&rest))))
+    }
+}
 
 #[cfg(target_os = "windows")]
 pub fn eol(input: Span) -> Result<Eol> {
@@ -27,27 +44,27 @@ pub fn eol(input: Span) -> Result<Eol> {
 }
 
 pub fn eql(input: Span) -> Result<Eql> {
-    char::<_, ()>('=')
-        .map(|_| Token::new(input.take(1), IEql))
+    ws(parsed(char::<_, ()>('=')))
+        .map(|(_, diff)| Token::new(diff, IEql))
         .parse_or(input, "Expected '='")
 }
 
 pub fn lpar(input: Span) -> Result<Lpar> {
-    char::<_, ()>('(')
-        .map(|_| Token::new(input.take(1), ILpar))
+    ws(parsed(char::<_, ()>('(')))
+        .map(|(_, diff)| Token::new(diff, ILpar))
         .parse_or(input, "Expected '('")
 }
 
 pub fn rpar(input: Span) -> Result<Rpar> {
-    char::<_, ()>(')')
-        .map(|_| Token::new(input.take(1), IRpar))
+    ws(parsed(char::<_, ()>(')')))
+        .map(|(_, diff)| Token::new(diff, IRpar))
         .parse_or(input, "Expected ')'")
 }
 
-fn integer(input: Span) -> Result<Int> {
+fn no_ws_integer(input: Span) -> Result<Int> {
     let (rest, int) = digit1::<_, ()>.parse_or(input, "Cannot instantiate integer")?;
     match int.parse::<i64>() {
-        Ok(int) => Ok((rest, Token::new(input.diff(rest), IInt(int)))),
+        Ok(int) => Ok((rest, Token::new(input.diff(&rest), IInt(int)))),
         Err(_) => Err(nom::Err::Failure(Error::new(
             input,
             "Cannot instantiate integer",
@@ -55,20 +72,20 @@ fn integer(input: Span) -> Result<Int> {
     }
 }
 
-pub fn number(input: Span) -> Result<Number> {
-    let (rest, integral) = integer(input)?;
+fn no_ws_number(input: Span) -> Result<Number> {
+    let (rest, integral) = no_ws_integer(input)?;
     // Nah I'd simplify
     if !rest.starts_with('.') {
         return Ok((rest, Number::Int(integral)));
     }
-    let (rest, rational) = integer.parse_or(
+    let (rest, rational) = no_ws_integer.parse_or(
         rest.take_from(1),
         "Cannot instantiate rational part of float",
     )?;
     if let Ok(float) = format!("{}.{}", integral.data.0, rational.data.0).parse() {
         Ok((
             rest,
-            Number::Float(Token::new(input.diff(rest), IFloat(float))),
+            Number::Float(Token::new(input.diff(&rest), IFloat(float))),
         ))
     } else {
         Err(nom::Err::Failure(Error::new(
@@ -78,18 +95,34 @@ pub fn number(input: Span) -> Result<Number> {
     }
 }
 
-pub fn ident(input: Span) -> Result<Ident> {
+fn no_ws_ident(input: Span) -> Result<Ident> {
     let (rest, head) = satisfy::<_, _, ()>(|c| c.is_alphabetic() || c == '_').parse_or(
         input,
         "Identifier should start with alphabetic char or underscore",
     )?;
-    let (rest, id) = many0(satisfy::<_, _, ()>(|c| c.is_alphanumeric() || c == '_'))
-        .map(|tail| iter::once(head).chain(tail.into_iter()).collect())
-        .parse_or(
-            rest,
-            "Identifier should contain only alphanumeric chars or underscore",
-        )?;
-    Ok((rest, Token::new(input.diff(rest), IIdent(id))))
+    let (rest, tail)= many0(satisfy::<_, _, ()>(|c| {
+        c.is_alphanumeric() || c == '_'
+    }))
+    .parse_or(
+        rest,
+        "Identifier should contain only alphanumeric chars or underscore",
+    )?;
+    Ok((rest, Token::new(
+        input.diff(&rest),
+        IIdent(iter::once(head).chain(tail.into_iter()).collect()),
+    )))
+}
+
+pub fn integer(input: Span) -> Result<Int> {
+    ws(no_ws_integer).parse(input)
+}
+
+pub fn number(input: Span) -> Result<Number> {
+    ws(no_ws_number).parse(input)
+}
+
+pub fn ident(input: Span) -> Result<Ident> {
+    ws(no_ws_ident).parse(input)
 }
 
 pub fn func_call(input: Span) -> Result<FuncCall> {
@@ -100,13 +133,15 @@ pub fn func_call(input: Span) -> Result<FuncCall> {
     )
         .map(|(ident, lp, (args, rp))| {
             Token::new(
-                input.including_diff(rp.pos),
+                input
+                    .take_from(input.offset(&ident.pos))
+                    .including_diff(&rp.pos),
                 IFuncCall {
                     ident,
                     args: Token::new(
                         input
                             .take_from(input.offset(&lp.pos))
-                            .including_diff(rp.pos),
+                            .including_diff(&rp.pos),
                         IFuncCallArgs(match args {
                             Some((arg0, args)) => iter::once(arg0)
                                 .chain(args.into_iter().map(|(_, arg)| arg))
@@ -121,19 +156,19 @@ pub fn func_call(input: Span) -> Result<FuncCall> {
 }
 
 pub fn unary_operation(input: Span) -> Result<UnaryOperation> {
-    value(IUnaryOperation::Inv, char::<_, ()>('-'))
-        .map(|inner| Token::new(input.take(1), inner))
+    ws(parsed(value(IUnaryOperation::Inv, char::<_, ()>('-'))))
+        .map(|(inner, diff)| Token::new(diff, inner))
         .parse_or(input, "Expected 'unary-'")
 }
 
 pub fn binary_operation(input: Span) -> Result<BinaryOperation> {
-    alt((
+    ws(parsed(alt((
         value(IBinaryOperation::Add, char::<_, ()>('+')),
         value(IBinaryOperation::Sub, char('-')),
         value(IBinaryOperation::Mul, char('*')),
         value(IBinaryOperation::Div, char('/')),
-    ))
-    .map(|inner| Token::new(input.take(1), inner))
+    ))))
+    .map(|(inner, diff)| Token::new(diff, inner))
     .parse_or(input, "Expected '+', '-', '*', or '/'")
 }
 
@@ -172,27 +207,28 @@ impl<'a> ExpressionTokens<'a> {
 fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
     (
         alt((
-            (unary_operation, parse_expression_tokens).map(|(op, mut exp)| {
+            (unary_operation, cut(parse_expression_tokens)).map(|(op, mut exp)| {
                 let exp0 = exp.operands[0].clone();
                 exp.operands[0] = Token::new(
-                    input.including_diff(exp0.pos),
-                    IExpression::Unary(
-                        Token::new(
-                            input.take_from(op.pos.len()).including_diff(exp0.pos),
-                            exp0.data.clone(),
-                        ),
-                        op,
-                    ),
+                    input
+                        .take_from(input.offset(&op.pos))
+                        .including_diff(&exp0.pos),
+                    IExpression::Unary(exp0, op),
                 );
                 ExpressionTokens {
                     operands: vec![exp.simplify().operands.remove(0)],
                     operations: vec![],
                 }
             }),
-            (lpar, parse_expression_tokens, rpar).map(|(_, exp, rp)| {
+            (lpar, cut((parse_expression_tokens, rpar))).map(|(lp, (exp, rp))| {
                 let exp = exp.simplify().operands.remove(0);
                 ExpressionTokens {
-                    operands: vec![Token::new(input.including_diff(rp.pos), exp.data.clone())],
+                    operands: vec![Token::new(
+                        input
+                            .take_from(input.offset(&lp.pos))
+                            .including_diff(&rp.pos),
+                        exp.data.clone(),
+                    )],
                     operations: vec![],
                 }
             }),
@@ -235,7 +271,12 @@ pub fn expression(input: Span) -> Result<Expression> {
 
 pub fn var_assign(input: Span) -> Result<VarAssign> {
     (ident, eql, cut((expression, eol)))
-        .map(|(ident, _, (expr, eol))| Token::new(input.diff(eol.pos), IVarAssign { ident, expr }))
+        .map(|(ident, _, (expr, eol))| {
+            Token::new(
+                input.take_from(input.offset(&ident.pos)).diff(&eol.pos),
+                IVarAssign { ident, expr },
+            )
+        })
         .parse(input)
 }
 
@@ -250,13 +291,13 @@ pub fn func_assign(input: Span) -> Result<FuncAssign> {
     )
         .map(|(ident, lp, args, rp, _, (exp, eol))| {
             Token::new(
-                input.diff(eol.pos),
+                input.take_from(input.offset(&ident.pos)).diff(&eol.pos),
                 IFuncAssign {
                     ident,
                     args: Token::new(
                         input
                             .take_from(input.offset(&lp.pos))
-                            .including_diff(rp.pos),
+                            .including_diff(&rp.pos),
                         IFuncAssignArgs(match args {
                             Some((arg0, args)) => iter::once(arg0)
                                 .chain(args.into_iter().map(|(_, arg)| arg))
@@ -271,6 +312,7 @@ pub fn func_assign(input: Span) -> Result<FuncAssign> {
         .parse(input)
 }
 
+#[derive(Debug)]
 pub enum Program<'a> {
     Expression(Expression<'a>),
     Func(FuncAssign<'a>),
@@ -279,9 +321,9 @@ pub enum Program<'a> {
 
 pub fn program(input: Span) -> Result<Program> {
     alt((
-        (expression, eol).map(|(expr, _)| Program::Expression(expr)),
-        func_assign.map(Program::Func),
         var_assign.map(Program::Var),
+        func_assign.map(Program::Func),
+        (expression, eol).map(|(expr, _)| Program::Expression(expr)),
     ))
     .parse(input)
 }

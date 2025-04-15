@@ -5,7 +5,7 @@ cargo run
 ```
 Enter some expression
 ```
-> 34544-x*(77/abs(13))
+> 34544 - x * ( 77 / abs(13))
 ```
 Define var
 ```
@@ -13,5 +13,5 @@ Define var
 ```
 Define func
 ```
-> sum(a,b)=a+b
+> sum (a, b) = a + b
 ```

@@ -83,9 +83,9 @@ pub struct IFuncCall<'a> {
     pub args: FuncCallArgs<'a>,
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum IUnaryOperation {
-    Inv
+    Inv,
 }
 
 #[derive(Debug, Clone)]

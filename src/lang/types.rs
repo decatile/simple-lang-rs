@@ -8,18 +8,18 @@ pub type Result<'a, O> = nom::IResult<Span<'a>, O, Error<'a>>;
 pub type Span<'a> = LocatedSpan<&'a str>;
 
 pub trait SpanExt<'a> {
-    fn diff(&self, other: Span) -> Span<'a>;
+    fn diff(&self, other: &Span) -> Span<'a>;
 
-    fn including_diff(&self, other: Span) -> Span<'a>;
+    fn including_diff(&self, other: &Span) -> Span<'a>;
 }
 
 impl<'a> SpanExt<'a> for Span<'a> {
-    fn diff(&self, other: Span) -> Span<'a> {
+    fn diff(&self, other: &Span) -> Span<'a> {
         let offset: usize = self.offset(&other);
         self.take(offset)
     }
 
-    fn including_diff(&self, other: Span) -> Span<'a> {
+    fn including_diff(&self, other: &Span) -> Span<'a> {
         let len = self.offset(&other) + other.len();
         self.take(len)
     }

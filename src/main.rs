@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use lang::{Context, Func, Span};
 use nom::{Err, Input, Offset};
 use std::{
@@ -22,7 +24,10 @@ fn main() {
                 buf_read += new_buf_read;
                 match program {
                     lang::Program::Expression(token) => {
-                        println!("{:?}", ctx.evaluate_expression(&token))
+                        match ctx.evaluate_expression(&token) {
+                            Ok(result) => println!("{result}"),
+                            Err(err) => println!("{err:?}"),
+                        }
                     }
                     lang::Program::Func(token) => {
                         ctx.funcs
@@ -41,7 +46,6 @@ fn main() {
                 }
             }
             Err(err) => {
-                unsafe { &mut *buf.get() }.drain(buf_read..);
                 match err {
                     Err::Incomplete(needed) => println!("{needed:?}"),
                     Err::Error(err) | Err::Failure(err) => {

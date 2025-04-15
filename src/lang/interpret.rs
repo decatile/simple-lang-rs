@@ -45,7 +45,6 @@ impl<'a> Context<'a> {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub enum EvaluateExpressionError<'a> {
     InvalidFunctionArgc(FuncCall<'a>, usize),
