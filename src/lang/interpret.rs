@@ -72,7 +72,8 @@ impl<'a> Context<'a> {
             IExpression::Unary(hs, op) => {
                 let hr = self.evaluate_expression(hs)?;
                 let r = match *op.data {
-                    IUnaryOperation::Inv => -hr,
+                    IUnaryOperation::Neg => -hr,
+                    IUnaryOperation::Pos => hr,
                 };
                 if r.is_finite() {
                     Ok(r)
