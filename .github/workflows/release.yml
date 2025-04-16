@@ -44,7 +44,7 @@ jobs:
           fi
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.artifact_name }}
@@ -64,7 +64,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
 
       - name: Create Release
         id: create_release
@@ -80,3 +80,6 @@ jobs:
             nelang-windows/nelang-windows.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+
+permissions:
+  contents: write
