@@ -11,6 +11,8 @@ NeLang is a lightweight expression-based language implemented in Rust, designed 
 - User-defined functions with arguments
 - Built-in functions (like `abs()`)
 - Error handling for common issues (division by zero, undefined variables, etc.)
+- Comparison operators: <, <=, ==, !=, >=, >
+- Ternary conditional operations (?:)
 
 ## Getting Started
 

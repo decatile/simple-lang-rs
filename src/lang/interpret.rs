@@ -84,6 +84,11 @@ impl<'a> Context<'a> {
             IExpression::Binary(lhs, op, rhs) => {
                 let lr = self.evaluate_expression(lhs)?;
                 let rr = self.evaluate_expression(rhs)?;
+
+                fn b2f(value: bool) -> f64 {
+                    if value { 1. } else { 0. }
+                }
+
                 let r = match *op.data {
                     IBinaryOperation::Add => lr + rr,
                     IBinaryOperation::Sub => lr - rr,
@@ -95,11 +100,24 @@ impl<'a> Context<'a> {
                             lr / rr
                         }
                     }
+                    IBinaryOperation::Lt => b2f(lr < rr),
+                    IBinaryOperation::Le => b2f(lr <= rr),
+                    IBinaryOperation::Eq => b2f(lr == rr),
+                    IBinaryOperation::Ne => b2f(lr != rr),
+                    IBinaryOperation::Ge => b2f(lr >= rr),
+                    IBinaryOperation::Gt => b2f(lr > rr),
                 };
                 if r.is_finite() {
                     Ok(r)
                 } else {
                     Err(EvaluateExpressionError::Overflow(expr.clone()))
+                }
+            }
+            IExpression::Ternary(cond, lhs, rhs) => {
+                if self.evaluate_expression(cond)? != 0. {
+                    self.evaluate_expression(lhs)
+                } else {
+                    self.evaluate_expression(rhs)
                 }
             }
             IExpression::Call(token) => {

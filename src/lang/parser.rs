@@ -30,28 +30,26 @@ fn parsed<'a, F: Parser<Span<'a>>>(
     }
 }
 
+macro_rules! verbose_char {
+    ($ident:ident, $ch:literal, $inner:path, $outer:path) => {
+        pub fn $ident(input: Span) -> Result<$outer> {
+            ws(parsed(char::<_, ()>($ch)))
+                .map(|(_, diff)| Token::new(diff, $inner))
+                .parse_or(input, concat!("Expected '", $ch, "'"))
+        }
+    };
+}
+
+verbose_char!(eql, '=', IEql, Eql);
+verbose_char!(lpar, '(', ILpar, Lpar);
+verbose_char!(rpar, ')', IRpar, Rpar);
+verbose_char!(que, '?', IQue, Que);
+verbose_char!(col, ':', ICol, Col);
+
 pub fn eol(input: Span) -> Result<Eol> {
     alt((tag::<_, _, ()>("\r\n"), tag("\n")))
         .map(|chars| Token::new(chars, IEol))
         .parse_or(input, "Expected EOL")
-}
-
-pub fn eql(input: Span) -> Result<Eql> {
-    ws(parsed(char::<_, ()>('=')))
-        .map(|(_, diff)| Token::new(diff, IEql))
-        .parse_or(input, "Expected '='")
-}
-
-pub fn lpar(input: Span) -> Result<Lpar> {
-    ws(parsed(char::<_, ()>('(')))
-        .map(|(_, diff)| Token::new(diff, ILpar))
-        .parse_or(input, "Expected '('")
-}
-
-pub fn rpar(input: Span) -> Result<Rpar> {
-    ws(parsed(char::<_, ()>(')')))
-        .map(|(_, diff)| Token::new(diff, IRpar))
-        .parse_or(input, "Expected ')'")
 }
 
 fn no_ws_integer(input: Span) -> Result<Int> {
@@ -163,9 +161,15 @@ pub fn binary_operation(input: Span) -> Result<BinaryOperation> {
         value(IBinaryOperation::Sub, char('-')),
         value(IBinaryOperation::Mul, char('*')),
         value(IBinaryOperation::Div, char('/')),
+        value(IBinaryOperation::Lt, char('<')),
+        value(IBinaryOperation::Le, tag("<=")),
+        value(IBinaryOperation::Eq, tag("==")),
+        value(IBinaryOperation::Ne, tag("!=")),
+        value(IBinaryOperation::Ge, tag(">=")),
+        value(IBinaryOperation::Gt, char('>')),
     ))))
     .map(|(inner, diff)| Token::new(diff, inner))
-    .parse_or(input, "Expected '+', '-', '*', or '/'")
+    .parse_or(input, "Expected '+', '-', '*', '/', '<', '<=', '==', '!=', '>=', '>'")
 }
 
 struct ExpressionTokens<'a> {
@@ -198,6 +202,11 @@ impl<'a> ExpressionTokens<'a> {
         self.operands.append(&mut other.operands);
         self.operations.append(&mut other.operations);
     }
+}
+
+enum ParseExpressionTokensRest<'a> {
+    Regular(Vec<(Token<'a, IBinaryOperation>, ExpressionTokens<'a>)>),
+    Ternary((Que<'a>, (ExpressionTokens<'a>, Col<'a>, ExpressionTokens<'a>))),
 }
 
 fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
@@ -247,14 +256,40 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
                 operations: vec![],
             }),
         )),
-        many0((binary_operation, parse_expression_tokens)),
+        alt((
+            (
+                que,
+                cut((
+                    parse_expression_tokens,
+                    col,
+                    parse_expression_tokens,
+                )),
+            )
+                .map(ParseExpressionTokensRest::Ternary),
+            many0((binary_operation, parse_expression_tokens))
+                .map(ParseExpressionTokensRest::Regular),
+        )),
     )
-        .map(|(mut tok, toks)| {
-            for (op, tt) in toks {
-                tok.operations.push(op);
-                tok.extend(tt);
+        .map(|(mut tok, rest)| match rest {
+            ParseExpressionTokensRest::Regular(toks) => {
+                for (op, tt) in toks {
+                    tok.operations.push(op);
+                    tok.extend(tt);
+                }
+                tok
             }
-            tok
+            ParseExpressionTokensRest::Ternary((_, (lhs, _, rhs))) => {
+                let lhs = lhs.simplify().operands.remove(0);
+                let rhs = rhs.simplify().operands.remove(0);
+                let cnd = tok.operands[0].clone();
+                tok.operands[0] = Token::new(
+                    input
+                        .take_from(input.offset(&cnd.pos))
+                        .including_diff(&rhs.pos),
+                    IExpression::Ternary(cnd, lhs, rhs),
+                );
+                tok
+            }
         })
         .parse(input)
 }

@@ -186,4 +186,23 @@ mod tests {
 
         assert!(result.is_ok(), "Input with LF should be valid");
     }
+
+    #[test]
+    fn test_ternary_operations() {
+        // Basic ternary operations
+        assert_eq!(parse_and_evaluate("1 ? 2 : 3\r\n"), Ok("2".to_string()));
+        assert_eq!(parse_and_evaluate("0 ? 2 : 3\r\n"), Ok("3".to_string()));
+        
+        // Ternary with expressions
+        assert_eq!(parse_and_evaluate("(1 + 1) ? 5 : 10\r\n"), Ok("5".to_string()));
+        assert_eq!(parse_and_evaluate("(1 - 1) ? 5 : 10\r\n"), Ok("10".to_string()));
+        
+        // Nested ternary operations
+        assert_eq!(parse_and_evaluate("1 ? (0 ? 2 : 3) : 4\r\n"), Ok("3".to_string()));
+        assert_eq!(parse_and_evaluate("0 ? 2 : (1 ? 3 : 4)\r\n"), Ok("3".to_string()));
+        
+        // Ternary with function calls
+        assert_eq!(parse_and_evaluate("abs(1) ? 2 : 3\r\n"), Ok("2".to_string()));
+        assert_eq!(parse_and_evaluate("abs(-1) ? 2 : 3\r\n"), Ok("2".to_string()));
+    }
 }

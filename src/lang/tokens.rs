@@ -2,6 +2,10 @@ use std::rc::Rc;
 
 use super::types::Span;
 
+pub type Que<'a> = Token<'a, IQue>;
+
+pub type Col<'a> = Token<'a, ICol>;
+
 pub type Eol<'a> = Token<'a, IEol>;
 
 pub type Eql<'a> = Token<'a, IEql>;
@@ -47,17 +51,16 @@ impl<'a, T> Token<'a, T> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct IEol;
+macro_rules! define_empty_struct {
+    ($($ident:ident),*) => {
+        $(
+            #[derive(Debug, Clone)]
+            pub struct $ident;
+        )*
+    };
+}
 
-#[derive(Debug, Clone)]
-pub struct IEql;
-
-#[derive(Debug, Clone)]
-pub struct ILpar;
-
-#[derive(Debug, Clone)]
-pub struct IRpar;
+define_empty_struct!(IQue, ICol, IEol, IEql, ILpar, IRpar);
 
 #[derive(Debug, Clone)]
 pub struct IInt(pub i64);
@@ -95,6 +98,13 @@ pub enum IBinaryOperation {
     Sub,
     Mul,
     Div,
+
+    Lt,
+    Le,
+    Eq,
+    Ne,
+    Ge,
+    Gt,
 }
 
 #[derive(Debug, Clone)]
@@ -104,6 +114,7 @@ pub enum IExpression<'a> {
     Number(Number<'a>),
     Unary(Expression<'a>, UnaryOperation<'a>),
     Binary(Expression<'a>, BinaryOperation<'a>, Expression<'a>),
+    Ternary(Expression<'a>, Expression<'a>, Expression<'a>),
 }
 
 #[derive(Debug, Clone)]
