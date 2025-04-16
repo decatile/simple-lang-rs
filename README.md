@@ -20,15 +20,14 @@ NeLang is a lightweight expression-based language implemented in Rust, designed 
 
 ### Installation
 
-Clone this repository and build the project:
+Clone this repository:
 
 ```bash
-git clone https://github.com/decatile/nelang.git
-cd nelang
-cargo build --release
+git clone https://github.com/decatile/simple-lang-rs.git
+cd simple-lang-rs
 ```
 
-### Running the Interpreter
+### Run the Interpreter
 
 Start the REPL interpreter:
 
