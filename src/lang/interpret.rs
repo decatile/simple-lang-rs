@@ -34,14 +34,7 @@ pub struct Context<'a> {
 
 impl<'a> Context<'a> {
     pub fn new() -> Self {
-        let mut this = Context::default();
-        this.funcs
-            .extend([builtin_func!(abs, 1, |args| if args[0] >= 0. {
-                args[0]
-            } else {
-                -args[0]
-            })]);
-        this
+        Context::default()
     }
 }
 

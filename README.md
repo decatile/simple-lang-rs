@@ -190,6 +190,30 @@ UndefinedFunction(...)
 InvalidFunctionArgc(...)
 ```
 
+### Special REPL Commands
+
+The interpreter responds to these special commands:
+
+```
+> help
+```
+Displays a list of available commands.
+
+```
+> help functions
+```
+Lists all defined functions (both built-in and user-defined) with their parameter counts.
+
+```
+> clear
+```
+Clears the terminal screen.
+
+```
+> exit
+```
+Exits the interpreter.
+
 ## License
 
 This project is open source and available under the [MIT License](LICENSE).

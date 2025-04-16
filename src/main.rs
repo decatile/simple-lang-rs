@@ -30,7 +30,16 @@ fn main() {
         stdin().read_line(&mut string).unwrap();
         match string.trim() {
             "help" => {
-                println!("help - print this\nclear - clear screen\nexit - exit the program");
+                println!(
+                    "help - print this\nhelp functions - print defined functions and its signature\nclear - clear screen\nexit - exit the program"
+                );
+                continue;
+            }
+            "help functions" => {
+                ctx.funcs.iter().for_each(|(k, v)| match v {
+                    Func::Builtin { argc, .. } => println!("{k}({argc})"),
+                    Func::Custom(token) => println!("{k}({}) builtin", token.data.args.data.0.len()),
+                });
                 continue;
             }
             "clear" => {

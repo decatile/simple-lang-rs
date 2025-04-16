@@ -119,13 +119,6 @@ mod tests {
     }
 
     #[test]
-    fn test_built_in_function() {
-        // Test the abs built-in function
-        assert_eq!(parse_and_evaluate("abs(-5)\r\n"), Ok("5".to_string()));
-        assert_eq!(parse_and_evaluate("abs(5)\r\n"), Ok("5".to_string()));
-    }
-
-    #[test]
     fn test_error_handling() {
         // Division by zero
         let result = parse_and_evaluate("10 / 0\r\n");
@@ -200,9 +193,5 @@ mod tests {
         // Nested ternary operations
         assert_eq!(parse_and_evaluate("1 ? (0 ? 2 : 3) : 4\r\n"), Ok("3".to_string()));
         assert_eq!(parse_and_evaluate("0 ? 2 : (1 ? 3 : 4)\r\n"), Ok("3".to_string()));
-        
-        // Ternary with function calls
-        assert_eq!(parse_and_evaluate("abs(1) ? 2 : 3\r\n"), Ok("2".to_string()));
-        assert_eq!(parse_and_evaluate("abs(-1) ? 2 : 3\r\n"), Ok("2".to_string()));
     }
 }
