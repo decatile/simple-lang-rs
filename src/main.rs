@@ -1,5 +1,6 @@
 use nelang::lang::{Context, Func, Program, Span, program};
 use nom::{Err, Offset};
+use std::process::Command;
 use std::{
     io::{Write, stdin, stdout},
     iter::repeat_n,
@@ -7,6 +8,17 @@ use std::{
     process::exit,
     rc::Rc,
 };
+
+fn clearscreen() {
+    if cfg!(target_os = "windows") {
+        Command::new("cmd").args(["/c", "cls"]).spawn()
+    } else {
+        Command::new("clear").spawn()
+    }
+    .unwrap()
+    .wait()
+    .unwrap();
+}
 
 fn main() {
     let mut storage = Vec::<Rc<String>>::new();
@@ -22,7 +34,7 @@ fn main() {
                 continue;
             }
             "clear" => {
-                clearscreen::clear().unwrap();
+                clearscreen();
                 continue;
             }
             "exit" => exit(0),
