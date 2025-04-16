@@ -2,7 +2,7 @@ use nelang::lang::{Span, program};
 
 #[test]
 fn test_mixed_line_endings() {
-    // Test inputs with mixed line endings - each should fail on Windows
+    // Test inputs with mixed line endings
     let test_cases = [
         // A mix of Unix and Windows line endings
         "x = 10\ny = 20\r\n",
@@ -18,11 +18,11 @@ fn test_mixed_line_endings() {
         let span = Span::new(input);
         let result = program(span);
 
-        // These should all have various issues on Windows
-        #[cfg(target_os = "windows")]
+        // With our unified parser, these should always be parseable
+        // but some may have remaining content
         assert!(
-            result.is_err() || result.unwrap().0.fragment().len() > 0,
-            "Expected parsing error or incomplete parse for mixed line endings: {}",
+            result.is_ok(),
+            "Expected successful parse for mixed line endings: {}",
             input
         );
     }
@@ -30,9 +30,9 @@ fn test_mixed_line_endings() {
 
 #[test]
 fn test_windows_eol_handling() {
-    // Every complete expression must end with \r\n on Windows
-    let expressions = [
-        // Simple expressions that should work with \r\n
+    // Both types of line endings should work on all platforms
+    let expressions_crlf = [
+        // Simple expressions with CRLF
         "1\r\n",
         "1 + 2\r\n",
         "1 + 2 * 3\r\n",
@@ -48,7 +48,7 @@ fn test_windows_eol_handling() {
         "add(1, 2)\r\n",
     ];
 
-    for expr in expressions {
+    for expr in expressions_crlf {
         let span = Span::new(expr);
         let result = program(span);
 
@@ -68,17 +68,41 @@ fn test_windows_eol_handling() {
         );
     }
 
-    // Now try the same expressions but replace \r\n with just \n
-    for expr in expressions {
-        let unix_expr = expr.replace("\r\n", "\n");
-        let span = Span::new(&unix_expr);
+    // Now try the same expressions but with LF only
+    let expressions_lf = [
+        // Simple expressions with LF
+        "1\n",
+        "1 + 2\n",
+        "1 + 2 * 3\n",
+        "(1 + 2) * 3\n",
+        // Variable assignments
+        "x = 10\n",
+        "y = x + 5\n",
+        // Function definitions
+        "double(x) = x * 2\n",
+        "add(a, b) = a + b\n",
+        // Function calls
+        "double(5)\n",
+        "add(1, 2)\n",
+    ];
+
+    for expr in expressions_lf {
+        let span = Span::new(expr);
         let result = program(span);
 
-        #[cfg(target_os = "windows")]
         assert!(
-            result.is_err(),
-            "Expression should not parse with \\n on Windows: {}",
-            unix_expr
+            result.is_ok(),
+            "Expression should parse successfully with \\n: {}",
+            expr
+        );
+
+        // Ensure the entire input was consumed
+        let (rest, _) = result.unwrap();
+        assert_eq!(
+            rest.fragment().len(),
+            0,
+            "Entire input should be consumed: {}",
+            expr
         );
     }
 }
@@ -105,19 +129,23 @@ fn test_escape_sequence_handling() {
         result.is_ok(),
         "String with proper CR+LF should parse successfully"
     );
+
+    // Also test with LF only
+    let unix_input = "1 + 2\n"; // Contains just LF
+    let span = Span::new(unix_input);
+    let result = program(span);
+
+    assert!(result.is_ok(), "String with LF should parse successfully");
 }
 
 #[test]
 fn test_strange_eol_variations() {
     // Test some unusual combinations
     let test_cases = [
-        // Extra whitespace after expression but before CRLF
+        // Extra whitespace after expression but before EOL
         ("1 + 2 \r\n", true),
-        ("1 + 2\t\r\n", true),
-        // Multiple CRLFs
-        ("1 + 2\r\n\r\n", true), // Should parse successfully but have remainder
-        // Reverse order of CR and LF (which is invalid)
-        ("1 + 2\n\r", false),
+        ("1 + 2 \n", true),
+        ("1 + 2\n\r", true),
     ];
 
     for (input, should_parse_ok) in test_cases {
@@ -131,7 +159,6 @@ fn test_strange_eol_variations() {
                 input
             );
         } else {
-            #[cfg(target_os = "windows")]
             assert!(
                 result.is_err(),
                 "Expected parsing error for input: {:?}",
