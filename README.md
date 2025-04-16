@@ -174,21 +174,105 @@ Using built-in functions:
 
 ### Error Handling
 
-NeLang provides informative error messages:
+NeLang provides detailed error messages that help identify and fix issues in your code:
 
 ```
 > 10 / 0
-DivisionByZero(...)
+Division by zero in expression: '0'
 
 > undefined_var
-UndefinedVar(...)
+Undefined variable: 'undefined_var'
 
 > undefined_func(5)
-UndefinedFunction(...)
+Undefined function: 'undefined_func'
 
 > double(1, 2)  # after defining double(x) = x * 2
-InvalidFunctionArgc(...)
+Invalid number of arguments for function 'double': expected 1, got 2
 ```
+
+The error messages include:
+- The type of error that occurred
+- The specific problematic expression or identifier
+- Additional context information when applicable (expected vs. actual argument count)
+
+For parsing errors, the interpreter will also point to the location of the syntax error
+
+### Comparison Operators
+
+NeLang supports standard comparison operators:
+
+```
+> 5 < 10
+1
+> 5 > 10
+0
+> 5 <= 5
+1
+> 5 >= 10
+0
+> 5 == 5
+1
+> 5 != 10
+1
+```
+
+Comparison operators return 1 for true and 0 for false.
+
+### Ternary Operator
+
+NeLang supports the ternary conditional operator with the syntax `condition ? true_expression : false_expression`:
+
+```
+> (5 > 3) ? 1 : 0
+1
+> (5 < 3) ? 1 : 0
+0
+```
+
+**Important:** When using complex expressions in conditions, they must be enclosed in parentheses:
+
+```
+> (5 > 3) ? 1 : 0  # Correct with parentheses
+```
+
+The ternary operator first evaluates the condition. If the condition evaluates to non-zero (true), the first expression after the question mark is evaluated and returned. Otherwise, the expression after the colon is evaluated and returned:
+
+```
+> x = 10
+10
+> y = 5
+5
+> (x > y) ? x : y
+10
+> (x < y) ? x : y
+5
+```
+
+Ternary operators can be used in assignments and function definitions:
+
+```
+> max(a, b) = (a > b) ? a : b
+Ok!
+> max(10, 5)
+10
+> max(3, 7)
+7
+```
+
+You can also nest ternary operators for more complex conditional logic, but remember to use parentheses:
+
+```
+> x = 5
+5
+> y = 10
+10
+> z = 7
+7
+> (x > y) ? x : (y > z) ? y : z
+10
+```
+
+In this example, if x > y, return x; otherwise, if y > z, return y; otherwise, return z.
 
 ### Special REPL Commands
 
