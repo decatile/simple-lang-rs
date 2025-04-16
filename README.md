@@ -5,7 +5,7 @@ NeLang is a lightweight expression-based language implemented in Rust, designed 
 ## Features
 
 - Basic arithmetic operations: addition, subtraction, multiplication, division
-- Support for unary operations (both + and -)
+- Support for unary operations (unary +, unary -, and logical NOT !)
 - Support for negative numbers and floating-point calculations
 - Variable assignment and scoping
 - User-defined functions with arguments
@@ -54,7 +54,7 @@ Expressions can include numbers, variables, function calls, and arithmetic opera
 5
 ```
 
-Both unary plus and minus are supported:
+Both unary plus, minus, and logical NOT are supported:
 
 ```
 > -5
@@ -65,6 +65,14 @@ Both unary plus and minus are supported:
 -5
 > +-5
 -5
+> !0   # Logical NOT: returns 1 for zero, 0 for non-zero
+1
+> !5
+0
+> !!0  # Double negation
+0
+> !(1 - 1)
+1
 ```
 
 NeLang follows standard operator precedence rules:
