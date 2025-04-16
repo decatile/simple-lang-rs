@@ -164,19 +164,26 @@ mod tests {
 
     #[test]
     fn test_trailing_cr_lf() {
-        // Test that inputs must end with \r\n
-        let input_without_crlf = "1 + 2";
-        let span = Span::new(input_without_crlf);
+        // Test that inputs can end with either \r\n or \n
+        let input_without_eol = "1 + 2";
+        let span = Span::new(input_without_eol);
         let result = program(span);
 
-        #[cfg(target_os = "windows")]
+        // This should fail on all platforms as there's no EOL
         assert!(result.is_err());
 
-        // Test correct input with \r\n
+        // Test with CRLF
         let input_with_crlf = "1 + 2\r\n";
         let span = Span::new(input_with_crlf);
         let result = program(span);
 
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Input with CRLF should be valid");
+
+        // Test with LF
+        let input_with_lf = "1 + 2\n";
+        let span = Span::new(input_with_lf);
+        let result = program(span);
+
+        assert!(result.is_ok(), "Input with LF should be valid");
     }
 }

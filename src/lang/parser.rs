@@ -2,6 +2,7 @@ use std::iter;
 
 use super::tokens::*;
 use super::types::*;
+use nom::bytes::complete::tag;
 use nom::character::complete::space0;
 use nom::combinator::cut;
 use nom::combinator::opt;
@@ -29,17 +30,9 @@ fn parsed<'a, F: Parser<Span<'a>>>(
     }
 }
 
-#[cfg(target_os = "windows")]
 pub fn eol(input: Span) -> Result<Eol> {
-    nom::bytes::complete::tag::<_, _, ()>("\r\n")
-        .map(|_| Token::new(input.take(2), IEol))
-        .parse_or(input, "Expected EOL")
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn eol(input: Span) -> Result<Eol> {
-    char::<_, ()>('\n')
-        .map(|_| Token::new(input.take(1), IEol))
+    alt((tag::<_, _, ()>("\r\n"), tag("\n")))
+        .map(|chars| Token::new(chars, IEol))
         .parse_or(input, "Expected EOL")
 }
 
@@ -100,17 +93,17 @@ fn no_ws_ident(input: Span) -> Result<Ident> {
         input,
         "Identifier should start with alphabetic char or underscore",
     )?;
-    let (rest, tail)= many0(satisfy::<_, _, ()>(|c| {
-        c.is_alphanumeric() || c == '_'
-    }))
-    .parse_or(
+    let (rest, tail) = many0(satisfy::<_, _, ()>(|c| c.is_alphanumeric() || c == '_')).parse_or(
         rest,
         "Identifier should contain only alphanumeric chars or underscore",
     )?;
-    Ok((rest, Token::new(
-        input.diff(&rest),
-        IIdent(iter::once(head).chain(tail.into_iter()).collect()),
-    )))
+    Ok((
+        rest,
+        Token::new(
+            input.diff(&rest),
+            IIdent(iter::once(head).chain(tail.into_iter()).collect()),
+        ),
+    ))
 }
 
 pub fn integer(input: Span) -> Result<Int> {
