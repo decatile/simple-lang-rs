@@ -4,6 +4,7 @@ use std::{
     io::{Write, stdin, stdout},
     iter::repeat_n,
     mem::transmute,
+    process::exit,
     rc::Rc,
 };
 
@@ -15,11 +16,23 @@ fn main() {
         stdout().flush().unwrap();
         let mut string = String::new();
         stdin().read_line(&mut string).unwrap();
+        match string.trim() {
+            "help" => {
+                println!("help - print this\nclear - clear screen\nexit - exit the program");
+                continue;
+            }
+            "clear" => {
+                clearscreen::clear().unwrap();
+                continue;
+            }
+            "exit" => exit(0),
+            _ => {}
+        }
         let span = {
             let input_rc = Rc::new(string);
             // SAFETY
-            // Преобразование в 'static безопасно, так как мы храним строки
-            // в InputStorage, пока программа выполняется
+            // Преобразование в 'static безопасно, так как мы храним строки,
+            // пока программа выполняется
             let span = unsafe { transmute::<_, Span<'static>>(Span::new(&input_rc)) };
             storage.push(input_rc);
             span
