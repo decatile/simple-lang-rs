@@ -194,4 +194,34 @@ mod tests {
         assert_eq!(parse_and_evaluate("1 ? (0 ? 2 : 3) : 4\r\n"), Ok("3".to_string()));
         assert_eq!(parse_and_evaluate("0 ? 2 : (1 ? 3 : 4)\r\n"), Ok("3".to_string()));
     }
+
+    #[test]
+    fn test_unary_operations() {
+        // Test unary minus
+        assert_eq!(parse_and_evaluate("-5\r\n"), Ok("-5".to_string()));
+        assert_eq!(parse_and_evaluate("-(2 + 3)\r\n"), Ok("-5".to_string()));
+        
+        // Test unary plus
+        assert_eq!(parse_and_evaluate("+5\r\n"), Ok("5".to_string()));
+        assert_eq!(parse_and_evaluate("+(2 + 3)\r\n"), Ok("5".to_string()));
+        
+        // Test unary not
+        assert_eq!(parse_and_evaluate("!0\r\n"), Ok("1".to_string()));
+        assert_eq!(parse_and_evaluate("!5\r\n"), Ok("0".to_string()));
+        assert_eq!(parse_and_evaluate("!(1 - 1)\r\n"), Ok("1".to_string()));
+        assert_eq!(parse_and_evaluate("!(1 + 1)\r\n"), Ok("0".to_string()));
+        
+        // Test multiple unary operations
+        assert_eq!(parse_and_evaluate("--5\r\n"), Ok("5".to_string()));
+        assert_eq!(parse_and_evaluate("-+5\r\n"), Ok("-5".to_string()));
+        assert_eq!(parse_and_evaluate("+-5\r\n"), Ok("-5".to_string()));
+        assert_eq!(parse_and_evaluate("!!0\r\n"), Ok("0".to_string()));
+        assert_eq!(parse_and_evaluate("!!5\r\n"), Ok("1".to_string()));
+        
+        // Test unary operations with expressions
+        assert_eq!(parse_and_evaluate("-5 + 10\r\n"), Ok("5".to_string()));
+        assert_eq!(parse_and_evaluate("10 + -5\r\n"), Ok("5".to_string()));
+        assert_eq!(parse_and_evaluate("(!0) ? 5 : 10\r\n"), Ok("5".to_string()));
+        assert_eq!(parse_and_evaluate("(!1) ? 5 : 10\r\n"), Ok("10".to_string()));
+    }
 }

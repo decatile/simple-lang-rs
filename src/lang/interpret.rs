@@ -91,6 +91,7 @@ impl<'a> Context<'a> {
                 let r = match *op.data {
                     IUnaryOperation::Neg => -hr,
                     IUnaryOperation::Pos => hr,
+                    IUnaryOperation::Not => if hr == 0. { 1. } else { 0. },
                 };
                 if r.is_finite() {
                     Ok(r)

@@ -97,6 +97,7 @@ pub struct IFuncCall<'a> {
 pub enum IUnaryOperation {
     Neg,
     Pos,
+    Not,
 }
 
 #[derive(Debug, Clone)]

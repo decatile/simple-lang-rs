@@ -150,9 +150,10 @@ pub fn unary_operation(input: Span) -> Result<UnaryOperation> {
     ws(parsed(alt((
         value(IUnaryOperation::Pos, char::<_, ()>('+')),
         value(IUnaryOperation::Neg, char::<_, ()>('-')),
+        value(IUnaryOperation::Not, char::<_, ()>('!')),
     ))))
     .map(|(inner, diff)| Token::new(diff, inner))
-    .parse_or(input, "Expected 'unary+' or 'unary-'")
+    .parse_or(input, "Expected 'unary+', 'unary-', or 'unary!'")
 }
 
 pub fn binary_operation(input: Span) -> Result<BinaryOperation> {
