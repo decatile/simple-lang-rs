@@ -63,7 +63,7 @@ fn main() {
                 match program {
                     Program::Expression(token) => match ctx.evaluate_expression(&token) {
                         Ok(result) => println!("{result}"),
-                        Err(err) => println!("{err:?}"),
+                        Err(err) => println!("{err}"),
                     },
                     Program::Func(token) => {
                         ctx.funcs
@@ -76,7 +76,7 @@ fn main() {
                             println!("{result}");
                         }
                         Err(err) => {
-                            println!("{err:?}");
+                            println!("{err}");
                         }
                     },
                 };

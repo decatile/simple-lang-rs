@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::fmt;
 
 use super::types::Span;
 
@@ -48,6 +49,12 @@ impl<'a, T> Token<'a, T> {
             pos,
             data: data.into(),
         }
+    }
+}
+
+impl<'a, T> fmt::Display for Token<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.pos.fragment())
     }
 }
 

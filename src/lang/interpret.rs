@@ -1,4 +1,5 @@
 use std::{collections::HashMap, rc::Rc};
+use std::fmt;
 
 use super::tokens::{
     Expression, FuncAssign, FuncCall, IBinaryOperation, IExpression, IUnaryOperation, Ident, Number,
@@ -45,6 +46,29 @@ pub enum EvaluateExpressionError<'a> {
     UndefinedVar(Ident<'a>),
     DivisionByZero(Expression<'a>),
     Overflow(Expression<'a>),
+}
+
+impl<'a> fmt::Display for EvaluateExpressionError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EvaluateExpressionError::InvalidFunctionArgc(func_call, expected_argc) => {
+                write!(f, "Invalid number of arguments for function '{}': expected {}, got {}", 
+                       func_call.data.ident, expected_argc, func_call.data.args.data.0.len())
+            },
+            EvaluateExpressionError::UndefinedFunction(func_call) => {
+                write!(f, "Undefined function: '{}'", func_call.data.ident)
+            },
+            EvaluateExpressionError::UndefinedVar(ident) => {
+                write!(f, "Undefined variable: '{}'", ident)
+            },
+            EvaluateExpressionError::DivisionByZero(expr) => {
+                write!(f, "Division by zero in expression: '{}'", expr)
+            },
+            EvaluateExpressionError::Overflow(expr) => {
+                write!(f, "Numeric overflow in expression: '{}'", expr)
+            },
+        }
+    }
 }
 
 impl<'a> Context<'a> {
