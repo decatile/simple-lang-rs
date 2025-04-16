@@ -4,6 +4,7 @@ use std::{
     io::{Write, stdin, stdout},
     iter::repeat_n,
     mem::transmute,
+    process::exit,
     rc::Rc,
 };
 
@@ -15,6 +16,18 @@ fn main() {
         stdout().flush().unwrap();
         let mut string = String::new();
         stdin().read_line(&mut string).unwrap();
+        match string.trim() {
+            "help" => {
+                println!("help - print this\nclear - clear screen\nexit - exit the program");
+                continue;
+            }
+            "clear" => {
+                clearscreen::clear().unwrap();
+                continue;
+            }
+            "exit" => exit(0),
+            _ => {}
+        }
         let span = {
             let input_rc = Rc::new(string);
             // SAFETY
