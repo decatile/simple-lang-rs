@@ -186,7 +186,7 @@ NeLang provides detailed error messages that help identify and fix issues in you
 
 ```
 > 10 / 0
-Division by zero in expression: '0'
+Division by expression that evaluates to zero: '0'
 
 > undefined_var
 Undefined variable: 'undefined_var'
