@@ -35,7 +35,12 @@ pub struct Context<'a> {
 
 impl<'a> Context<'a> {
     pub fn new() -> Self {
-        Context::default()
+        let mut this = Context::default();
+        this.funcs.extend([builtin_func!(print, 1, |args| {
+            println!("{}", args[0]);
+            0.
+        })]);
+        this
     }
 }
 
