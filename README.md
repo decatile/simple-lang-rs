@@ -18,7 +18,7 @@ NeLang is a lightweight expression-based language implemented in Rust, designed 
 
 ### Prerequisites
 
-- Rust and Cargo (2021 edition or newer)
+- Rust and Cargo (2024 edition or newer)
 
 ### Installation
 
@@ -186,7 +186,7 @@ NeLang provides detailed error messages that help identify and fix issues in you
 
 ```
 > 10 / 0
-Division by zero in expression: '0'
+Division by expression that evaluates to zero: '0'
 
 > undefined_var
 Undefined variable: 'undefined_var'
