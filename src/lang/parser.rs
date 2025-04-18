@@ -170,7 +170,10 @@ pub fn binary_operation(input: Span) -> Result<BinaryOperation> {
         value(IBinaryOperation::Gt, char('>')),
     ))))
     .map(|(inner, diff)| Token::new(diff, inner))
-    .parse_or(input, "Expected '+', '-', '*', '/', '<', '<=', '==', '!=', '>=', '>'")
+    .parse_or(
+        input,
+        "Expected '+', '-', '*', '/', '<', '<=', '==', '!=', '>=', '>'",
+    )
 }
 
 struct ExpressionTokens<'a> {
@@ -179,7 +182,7 @@ struct ExpressionTokens<'a> {
 }
 
 impl<'a> ExpressionTokens<'a> {
-    fn simplify(mut self) -> ExpressionTokens<'a> {
+    fn simplify(mut self, input: Span<'a>) -> ExpressionTokens<'a> {
         while let Some(pos) = self
             .operations
             .iter()
@@ -188,13 +191,23 @@ impl<'a> ExpressionTokens<'a> {
             let op = self.operations.remove(pos);
             let rhs = self.operands.remove(pos + 1);
             let lhs = self.operands[pos].clone();
-            self.operands[pos] = Token::new(lhs.pos, IExpression::Binary(lhs, op, rhs));
+            self.operands[pos] = Token::new(
+                input
+                    .take_from(input.offset(&lhs.pos))
+                    .including_diff(&rhs.pos),
+                IExpression::Binary(lhs, op, rhs),
+            );
         }
         while !self.operations.is_empty() {
             let op = self.operations.remove(0);
             let rhs = self.operands.remove(1);
             let lhs = self.operands[0].clone();
-            self.operands[0] = Token::new(lhs.pos, IExpression::Binary(lhs, op, rhs));
+            self.operands[0] = Token::new(
+                input
+                    .take_from(input.offset(&lhs.pos))
+                    .including_diff(&rhs.pos),
+                IExpression::Binary(lhs, op, rhs),
+            );
         }
         self
     }
@@ -207,7 +220,12 @@ impl<'a> ExpressionTokens<'a> {
 
 enum ParseExpressionTokensRest<'a> {
     Regular(Vec<(Token<'a, IBinaryOperation>, ExpressionTokens<'a>)>),
-    Ternary((Que<'a>, (ExpressionTokens<'a>, Col<'a>, ExpressionTokens<'a>))),
+    Ternary(
+        (
+            Que<'a>,
+            (ExpressionTokens<'a>, Col<'a>, ExpressionTokens<'a>),
+        ),
+    ),
 }
 
 fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
@@ -222,12 +240,12 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
                     IExpression::Unary(exp0, op),
                 );
                 ExpressionTokens {
-                    operands: vec![exp.simplify().operands.remove(0)],
+                    operands: vec![exp.simplify(input).operands.remove(0)],
                     operations: vec![],
                 }
             }),
             (lpar, cut((parse_expression_tokens, rpar))).map(|(lp, (exp, rp))| {
-                let exp = exp.simplify().operands.remove(0);
+                let exp = exp.simplify(input).operands.remove(0);
                 ExpressionTokens {
                     operands: vec![Token::new(
                         input
@@ -260,11 +278,7 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
         alt((
             (
                 que,
-                cut((
-                    parse_expression_tokens,
-                    col,
-                    parse_expression_tokens,
-                )),
+                cut((parse_expression_tokens, col, parse_expression_tokens)),
             )
                 .map(ParseExpressionTokensRest::Ternary),
             many0((binary_operation, parse_expression_tokens))
@@ -280,8 +294,8 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
                 tok
             }
             ParseExpressionTokensRest::Ternary((_, (lhs, _, rhs))) => {
-                let lhs = lhs.simplify().operands.remove(0);
-                let rhs = rhs.simplify().operands.remove(0);
+                let lhs = lhs.simplify(input).operands.remove(0);
+                let rhs = rhs.simplify(input).operands.remove(0);
                 let cnd = tok.operands[0].clone();
                 tok.operands[0] = Token::new(
                     input
@@ -297,7 +311,7 @@ fn parse_expression_tokens(input: Span) -> Result<ExpressionTokens> {
 
 pub fn expression(input: Span) -> Result<Expression> {
     parse_expression_tokens
-        .map(|tok| tok.simplify().operands.remove(0))
+        .map(|tok| tok.simplify(input).operands.remove(0))
         .parse(input)
 }
 
