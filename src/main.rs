@@ -1,8 +1,13 @@
 use core::str;
-use nelang::lang::{Context, Func, Program, Span, program};
+use nelang::lang::{
+    Context, Func, IExpression, IFloat, Number, Program, Span, Token, VarAssign, VarAssignExpr,
+    program,
+};
 use nom::multi::many1;
 use nom::{Err, Offset, Parser};
+use std::borrow::Cow;
 use std::env::args;
+use std::fs::File;
 use std::io::Read;
 use std::process::Command;
 use std::{
@@ -24,6 +29,37 @@ fn clearscreen() {
     .unwrap();
 }
 
+fn handle_user_input<'a>(
+    ui: &VarAssign<'a>,
+    var_name: &str,
+) -> Result<Token<'a, IExpression<'a>>, String> {
+    let term = if cfg!(target_os = "windows") {
+        File::open("CON")
+    } else {
+        File::open("/dev/tty")
+    }
+    .unwrap();
+    let mut buffer = String::new();
+    print!("Enter value for variable '{}': ", var_name);
+    stdout().flush().unwrap();
+    use std::io::BufRead;
+    let mut reader = std::io::BufReader::new(term);
+    reader.read_line(&mut buffer).unwrap();
+    buffer
+        .trim()
+        .parse::<f64>()
+        .map(|value| {
+            Token::new(
+                ui.pos,
+                Rc::new(IExpression::Number(Number::Float(Token::new(
+                    ui.pos,
+                    IFloat(value),
+                )))),
+            )
+        })
+        .map_err(|_| "Invalid input. Expected a number.".to_string())
+}
+
 fn repl_main() {
     let mut storage = Vec::<Rc<String>>::new();
     let mut ctx = Context::new();
@@ -35,7 +71,12 @@ fn repl_main() {
         match string.trim() {
             "help" => {
                 println!(
-                    "help - print this\nhelp functions - print defined functions and its signature\nclear - clear screen\nexit - exit the program"
+                    "Available commands:
+help - Print this help message.
+help functions - List all defined functions and their signatures.
+clear - Clear the screen.
+exit - Exit the program.
+You can also enter expressions, variable declarations, or function definitions directly."
                 );
                 continue;
             }
@@ -76,15 +117,29 @@ fn repl_main() {
                             .insert(token.data.ident.data.0.clone(), Func::Custom(token));
                         println!("Ok!")
                     }
-                    Program::Var(token) => match ctx.evaluate_expression(&token.data.expr) {
-                        Ok(result) => {
-                            ctx.vars.insert(token.data.ident.data.0.clone(), result);
-                            println!("{result}");
+                    Program::Var(token) => {
+                        let cow = match &token.data.expr {
+                            VarAssignExpr::Expression(token) => Cow::Borrowed(token),
+                            VarAssignExpr::UserInput(_) => {
+                                match handle_user_input(&token, &token.data.ident.data.0) {
+                                    Ok(token) => Cow::Owned(token),
+                                    Err(err) => {
+                                        println!("{err}");
+                                        continue;
+                                    }
+                                }
+                            }
+                        };
+                        match ctx.evaluate_expression(&cow) {
+                            Ok(result) => {
+                                ctx.vars.insert(token.data.ident.data.0.clone(), result);
+                                println!("{result}");
+                            }
+                            Err(err) => {
+                                println!("{err}");
+                            }
                         }
-                        Err(err) => {
-                            println!("{err}");
-                        }
-                    },
+                    }
                 };
             }
             Err(err) => match err {
@@ -127,15 +182,29 @@ fn execute_main() {
                         ctx.funcs
                             .insert(token.data.ident.data.0.clone(), Func::Custom(token));
                     }
-                    Program::Var(token) => match ctx.evaluate_expression(&token.data.expr) {
-                        Ok(result) => {
-                            ctx.vars.insert(token.data.ident.data.0.clone(), result);
+                    Program::Var(token) => {
+                        let cow = match &token.data.expr {
+                            VarAssignExpr::Expression(token) => Cow::Borrowed(token),
+                            VarAssignExpr::UserInput(_) => {
+                                match handle_user_input(&token, &token.data.ident.data.0) {
+                                    Ok(token) => Cow::Owned(token),
+                                    Err(err) => {
+                                        println!("{err}");
+                                        return;
+                                    }
+                                }
+                            }
+                        };
+                        match ctx.evaluate_expression(&cow) {
+                            Ok(result) => {
+                                ctx.vars.insert(token.data.ident.data.0.clone(), result);
+                            }
+                            Err(err) => {
+                                println!("{err}");
+                                return;
+                            }
                         }
-                        Err(err) => {
-                            println!("{err}");
-                            return;
-                        }
-                    },
+                    }
                 };
             }
         }
@@ -161,8 +230,32 @@ fn main() {
             }
             "-h" | "--help" => {
                 println!(
-                    "NeLang - Simple Expression Interpreter\nCall the program without arguments to enter REPL mode\nTo execute a program, pass it through the pipe with flag '-e' | '--execute'."
-                )
+                    "Usage: nelang [OPTIONS]
+
+NeLang - Simple Expression Interpreter
+
+Options:
+  -e, --execute    Execute a program passed through the pipe.
+  -h, --help       Display this help message.
+
+Description:
+  Call the program without arguments to enter REPL mode.
+  To execute a program, pass it through the pipe with the '-e' or '--execute' flag.
+
+Syntax rules:
+  expr           = term (operator term)* | ternary
+  term           = number | ident | func_call | '(' expr ')' | unary_operator term
+  func_call      = ident '(' args ')' '=' expr
+  var            = ident '=' expr
+  args           = ident (',' ident)*
+  operator       = '+' | '-' | '*' | '/' | '%' | '<' | '<=' | '==' | '!=' | '>=' | '>'
+  unary_operator = '+' | '-' | '!'
+  ternary        = expr '?' expr ':' expr
+
+Note:
+  For ternary expressions, the condition should be wrapped in parentheses if it is complex.
+  Example: (x > 0) ? x : -x"
+                );
             }
             other => {
                 println!("Undefined argument '{other}'. Use '-h' or '--help' to print help.")

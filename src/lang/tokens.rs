@@ -126,9 +126,15 @@ pub enum IExpression<'a> {
 }
 
 #[derive(Debug, Clone)]
+pub enum VarAssignExpr<'a> {
+    Expression(Expression<'a>),
+    UserInput(Que<'a>),
+}
+
+#[derive(Debug, Clone)]
 pub struct IVarAssign<'a> {
     pub ident: Ident<'a>,
-    pub expr: Expression<'a>,
+    pub expr: VarAssignExpr<'a>,
 }
 
 #[derive(Debug, Clone)]

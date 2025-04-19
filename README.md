@@ -106,6 +106,18 @@ Variables can be reassigned:
 15
 ```
 
+You can also prompt for variable values interactively by using the `?` operator:
+
+```
+> x = ?
+Enter value for variable 'x': 42
+42
+> x + 10
+52
+```
+
+This feature is useful for scenarios where variable values need to be provided dynamically during execution.
+
 ### Functions
 
 Define functions using the format `name(param1, param2, ...) = expression`:

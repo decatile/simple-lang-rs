@@ -85,7 +85,10 @@ fn test_program_execution_sequence() {
                 );
             }
             Program::Var(token) => {
-                let eval_result = ctx.evaluate_expression(&token.data.expr);
+                let eval_result = ctx.evaluate_expression(match &token.data.expr {
+                    nelang::lang::VarAssignExpr::Expression(token) => token,
+                    nelang::lang::VarAssignExpr::UserInput(_) => unreachable!(),
+                });
                 assert!(
                     eval_result.is_ok(),
                     "Failed to evaluate variable assignment at step {}: {}",
@@ -121,7 +124,10 @@ fn test_error_propagation() {
 
         match program {
             Program::Var(token) => {
-                let value = ctx.evaluate_expression(&token.data.expr).unwrap();
+                let value = ctx.evaluate_expression(match &token.data.expr {
+                    nelang::lang::VarAssignExpr::Expression(token) => token,
+                    nelang::lang::VarAssignExpr::UserInput(_) => unreachable!(),
+                }).unwrap();
                 ctx.vars.insert(token.data.ident.data.0.clone(), value);
             }
             Program::Func(token) => {
@@ -185,7 +191,10 @@ fn test_nested_expressions() {
 
         match program {
             Program::Var(token) => {
-                let value = ctx.evaluate_expression(&token.data.expr).unwrap();
+                let value = ctx.evaluate_expression(match &token.data.expr {
+                    nelang::lang::VarAssignExpr::Expression(token) => token,
+                    nelang::lang::VarAssignExpr::UserInput(_) => unreachable!(),
+                }).unwrap();
                 ctx.vars.insert(token.data.ident.data.0.clone(), value);
             }
             Program::Func(token) => {

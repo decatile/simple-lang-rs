@@ -316,7 +316,17 @@ pub fn expression(input: Span) -> Result<Expression> {
 }
 
 pub fn var_assign(input: Span) -> Result<VarAssign> {
-    (ident, eql, cut((expression, eol)))
+    (
+        ident,
+        eql,
+        cut((
+            alt((
+                expression.map(VarAssignExpr::Expression),
+                que.map(VarAssignExpr::UserInput),
+            )),
+            eol,
+        )),
+    )
         .map(|(ident, _, (expr, eol))| {
             Token::new(
                 input.take_from(input.offset(&ident.pos)).diff(&eol.pos),

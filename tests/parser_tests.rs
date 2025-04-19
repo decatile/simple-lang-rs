@@ -19,7 +19,10 @@ fn parse_and_evaluate(input: &str) -> Result<String, String> {
                     );
                     Ok("Ok!".to_string())
                 }
-                Program::Var(token) => match ctx.evaluate_expression(&token.data.expr) {
+                Program::Var(token) => match ctx.evaluate_expression(match &token.data.expr {
+                    nelang::lang::VarAssignExpr::Expression(token) => token,
+                    nelang::lang::VarAssignExpr::UserInput(_) => unreachable!(),
+                }) {
                     Ok(result) => {
                         ctx.vars.insert(token.data.ident.data.0.clone(), result);
                         Ok(result.to_string())
@@ -66,7 +69,10 @@ mod tests {
         let result = program(span).unwrap();
 
         if let (_, Program::Var(token)) = result {
-            let result = ctx.evaluate_expression(&token.data.expr).unwrap();
+            let result = ctx.evaluate_expression(match &token.data.expr {
+                nelang::lang::VarAssignExpr::Expression(token) => token,
+                nelang::lang::VarAssignExpr::UserInput(_) => unreachable!(),
+            }).unwrap();
             ctx.vars.insert(token.data.ident.data.0.clone(), result);
             assert_eq!(result, 10.0);
             assert_eq!(ctx.vars.get("x"), Some(&10.0));

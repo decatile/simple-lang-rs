@@ -21,7 +21,7 @@ macro_rules! builtin_func {
 #[derive(Clone)]
 pub enum Func<'a> {
     Builtin {
-        inner: Rc<dyn Fn(&[f64]) -> f64>,
+        inner: Rc<dyn Fn(&[f64]) -> Result<f64, String>>,
         argc: usize,
     },
     Custom(FuncAssign<'a>),
@@ -38,7 +38,7 @@ impl<'a> Context<'a> {
         let mut this = Context::default();
         this.funcs.extend([builtin_func!(print, 1, |args| {
             println!("{}", args[0]);
-            0.
+            Ok(0.)
         })]);
         this
     }
@@ -51,6 +51,7 @@ pub enum EvaluateExpressionError<'a> {
     UndefinedVar(Ident<'a>),
     DivisionByZero(Expression<'a>),
     Overflow(Expression<'a>),
+    BuiltinFunctionError(FuncCall<'a>, String),
 }
 
 impl<'a> fmt::Display for EvaluateExpressionError<'a> {
@@ -80,6 +81,9 @@ impl<'a> fmt::Display for EvaluateExpressionError<'a> {
             }
             EvaluateExpressionError::Overflow(expr) => {
                 write!(f, "Numeric overflow in expression: '{}'", expr)
+            }
+            EvaluateExpressionError::BuiltinFunctionError(func_call, err) => {
+                write!(f, "Error in built-in function '{}': {}", func_call.data.ident, err)
             }
         }
     }
@@ -179,7 +183,12 @@ impl<'a> Context<'a> {
                         for (idx, tok) in token.data.args.data.0.iter().enumerate() {
                             args[idx] = self.evaluate_expression(tok)?;
                         }
-                        Ok((builtin_func_inner)(&args))
+                        builtin_func_inner(&args).map_err(|err| {
+                            EvaluateExpressionError::BuiltinFunctionError(
+                                token.clone(),
+                                err,
+                            )
+                        })
                     }
                     Func::Custom(custom_func) => {
                         let custom_func_argc = custom_func.data.args.data.0.len();
